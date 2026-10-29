@@ -220,3 +220,98 @@ class AuthService:
             raise RuntimeError(
                 "Cognito authentication failed."
             ) from exc
+        
+    @staticmethod
+    async def refresh_session(
+        refresh_token: str,
+        username: str,
+    ) -> dict:
+        username = username.strip()
+        try:
+            result = await asyncio.to_thread(
+                cognito.initiate_auth,
+                ClientId=settings.cognito_client_id,
+                AuthFlow="REFRESH_TOKEN_AUTH",
+                AuthParameters={
+                    "REFRESH_TOKEN": refresh_token,
+                    "SECRET_HASH": calculate_secret_hash(username),
+                },
+            )
+
+            tokens = result.get("AuthenticationResult")
+
+            if not tokens or not tokens.get("AccessToken"):
+                raise RuntimeError(
+                    "Cognito did not return a refreshed access token."
+                )
+
+            return {
+                "access_token": tokens["AccessToken"],
+                "id_token": tokens.get("IdToken"),
+                "expires_in": tokens["ExpiresIn"],
+                "token_type": tokens.get("TokenType", "Bearer"),
+            }
+
+        except ClientError as exc:
+            error = exc.response.get("Error", {})
+
+            print("Cognito refresh error code:", error.get("Code"))
+            print("Cognito refresh error message:", error.get("Message"))
+
+            error_code = error.get("Code", "")
+
+            if error_code in {
+                "NotAuthorizedException",
+                "UserNotFoundException",
+            }:
+                raise ValueError(
+                    "The refresh token is invalid or expired."
+                ) from exc
+
+            if error_code in {
+                "TooManyRequestsException",
+                "LimitExceededException",
+            }:
+                raise ValueError(
+                    "Too many refresh attempts. Try again later."
+                ) from exc
+
+            raise RuntimeError(
+                "Cognito session refresh failed."
+            ) from exc
+
+    @staticmethod
+    async def logout(access_token: str) -> dict:
+        try:
+            await asyncio.to_thread(
+                cognito.global_sign_out,
+                AccessToken=access_token,
+            )
+
+            return {
+                "success": True,
+                "message": "Logged out successfully.",
+            }
+
+        except ClientError as exc:
+            error_code = exc.response.get("Error", {}).get("Code", "")
+
+            if error_code in {
+                "NotAuthorizedException",
+                "InvalidParameterException",
+            }:
+                raise ValueError(
+                    "The access token is invalid or expired."
+                ) from exc
+
+            if error_code in {
+                "TooManyRequestsException",
+                "LimitExceededException",
+            }:
+                raise ValueError(
+                    "Too many logout attempts. Try again later."
+                ) from exc
+
+            raise RuntimeError(
+                "Cognito logout failed."
+            ) from exc

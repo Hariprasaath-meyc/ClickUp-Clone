@@ -16,37 +16,52 @@ from app.modules.auth.token_service import verify_access_token
 async def get_authenticated_claims(
     request: Request,
 ) -> dict | None:
-    authorization = request.headers.get(
-        "Authorization"
-    )
+    authorization = request.headers.get("Authorization")
 
     if not authorization:
         return None
 
     scheme, separator, token = authorization.partition(" ")
 
-    if scheme.lower() != "bearer" or not separator or not token:
-        raise GraphQLError(
-            "Invalid Authorization header."
-        )
+    if (
+        scheme.lower() != "bearer"
+        or not separator
+        or not token
+    ):
+        return None
 
     try:
         return await verify_access_token(token)
+
     except (jwt.InvalidTokenError, jwt.PyJWKClientError):
-        raise GraphQLError(
-            "Invalid or expired access token."
-        )
-    
+        return None
 
 
 async def get_context(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    claims = await get_authenticated_claims(request)
-    return {"db": db,
-             "current_user": claims,}
+    authorization = request.headers.get("Authorization")
 
+    access_token = None
+
+    if authorization:
+        scheme, separator, token = authorization.partition(" ")
+
+        if (
+            scheme.lower() == "bearer"
+            and separator
+            and token
+        ):
+            access_token = token
+
+    claims = await get_authenticated_claims(request)
+
+    return {
+        "db": db,
+        "current_user": claims,
+        "access_token": access_token,
+    }
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield

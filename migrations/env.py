@@ -8,6 +8,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.core.config import settings
+from app.modules.users.profile_models import UserProfile
 from app.db.base import Base
 from app.modules.users.models import User
 # Importing Base registers the User model and its table metadata.

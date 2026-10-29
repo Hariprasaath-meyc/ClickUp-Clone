@@ -1,4 +1,3 @@
-
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -7,6 +6,7 @@ from app.modules.users.repository import UserRepository
 
 
 class UserService:
+
     @staticmethod
     async def create_from_cognito(
         session: AsyncSession,
@@ -28,5 +28,6 @@ class UserService:
 
         except IntegrityError as exc:
             raise ValueError(
-                "The user profile already exists or conflicts with an existing record."
+                "Unable to create the user. "
+                "The email or Cognito identity may already exist."
             ) from exc

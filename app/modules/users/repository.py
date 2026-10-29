@@ -1,7 +1,9 @@
+from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.users.models import User
+from app.modules.users.profile_models import UserProfile
 
 
 class UserRepository:
@@ -23,6 +25,16 @@ class UserRepository:
         session.add(user)
 
         await session.flush()
+
+
+        profile = UserProfile(
+            user_id=user.id,
+            display_name=display_name,
+        )
+        session.add(profile)
+
+        await session.flush()
+
         await session.refresh(user)
 
         return user
@@ -47,6 +59,18 @@ class UserRepository:
         result = await session.execute(
             select(User).where(
                 User.cognito_sub == cognito_sub
+            )
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_profile_by_user_id(
+        session: AsyncSession,
+        user_id: UUID,
+    ) -> UserProfile | None:
+        result = await session.execute(
+            select(UserProfile).where(
+                UserProfile.user_id == user_id
             )
         )
         return result.scalar_one_or_none()

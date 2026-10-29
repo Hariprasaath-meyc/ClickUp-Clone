@@ -38,4 +38,20 @@ def calculate_secret_hash(username: str) -> str:
     ).digest()
 
     return base64.b64encode(digest).decode("utf-8")
-     
+
+def refresh_cognito_session(
+    refresh_token: str,
+    username: str,
+) -> dict:
+    client = get_cognito_client()
+
+    response = client.initiate_auth(
+        ClientId=settings.COGNITO_CLIENT_ID,
+        AuthFlow="REFRESH_TOKEN_AUTH",
+        AuthParameters={
+            "REFRESH_TOKEN": refresh_token,
+            "SECRET_HASH": calculate_secret_hash(username),
+        },
+    )
+
+    return response["AuthenticationResult"]
