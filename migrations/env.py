@@ -11,6 +11,14 @@ from app.core.config import settings
 from app.modules.users.profile_models import UserProfile
 from app.db.base import Base
 from app.modules.users.models import User
+from app.modules.workspaces.models import (
+    Workspace,
+    WorkspaceMember,
+    Role,
+    Permission,
+    RolePermission,
+)
+                                      
 # Importing Base registers the User model and its table metadata.
 target_metadata = Base.metadata
 # Alembic configuration

@@ -62,6 +62,8 @@ async def get_context(
         "current_user": claims,
         "access_token": access_token,
     }
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield

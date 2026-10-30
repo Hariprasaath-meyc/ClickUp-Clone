@@ -315,3 +315,43 @@ class AuthService:
             raise RuntimeError(
                 "Cognito logout failed."
             ) from exc
+    @staticmethod
+    async def get_authenticated_identity(
+        access_token: str,
+    ) -> dict:
+        try:
+            result = await asyncio.to_thread(
+                cognito.get_user,
+                AccessToken=access_token,
+            )
+
+            attributes = {
+                item["Name"]: item["Value"]
+                for item in result.get("UserAttributes", [])
+            }
+
+            if attributes.get("email_verified") != "true":
+                raise ValueError(
+                    "Please verify your email before continuing."
+                )
+
+            return {
+                "cognito_sub": attributes["sub"],
+                "email": attributes["email"],
+                "display_name": attributes.get("name", ""),
+            }
+
+        except ClientError as exc:
+            error_code = exc.response.get("Error", {}).get("Code", "")
+
+            if error_code in {
+                "NotAuthorizedException",
+                "UserNotFoundException",
+            }:
+                raise ValueError(
+                    "Your authentication session is invalid or expired."
+                ) from exc
+
+            raise RuntimeError(
+                "Unable to verify the Cognito identity."
+            ) from exc

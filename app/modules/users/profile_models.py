@@ -46,6 +46,11 @@ class UserProfile(Base):
         nullable=False,
     )
 
+    bio: Mapped[str | None] = mapped_column(
+    Text,
+    nullable=True,
+)
+
     avatar_url: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
