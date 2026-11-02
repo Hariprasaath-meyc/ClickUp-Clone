@@ -1,14 +1,18 @@
 
 import asyncio
 import base64
+import code
 import email
 import hashlib
 import hmac
+from pyexpat.errors import messages
+from venv import logger
 
 import boto3
 from botocore.exceptions import ClientError
 
 from app.core.config import settings
+from app.modules.auth.cognito import get_cognito_client, refresh_cognito_session
 
 
 cognito = boto3.client(
@@ -29,12 +33,14 @@ def calculate_secret_hash(username: str) -> str:
 
 #Signup, confirm_signup, and resend_confirmation_code 
 class AuthService:
+
     @staticmethod
     async def signup(
-        name: str,
+        display_name: str,
         email: str,
         password: str,
     ) -> dict:
+
         try:
             result = await asyncio.to_thread(
                 cognito.sign_up,
@@ -44,14 +50,14 @@ class AuthService:
                 Password=password,
                 UserAttributes=[
                     {"Name": "email", "Value": email},
-                    {"Name": "name", "Value": name},
+                    {"Name": "name", "Value": display_name},
                 ],
             )
 
             return {
                 "user_id": result["UserSub"],
                 "email": email,
-                "name": name,
+                "display_name": display_name,
                 "confirmed": result.get("UserConfirmed", False),
             }
 
@@ -73,7 +79,7 @@ class AuthService:
             }
 
             if code in messages:
-                raise ValueError(messages[code]) from exc
+                raise ValueError(messages[code]) from None
 
             raise RuntimeError(
                 "Cognito signup failed."
@@ -139,15 +145,21 @@ class AuthService:
             }
 
         except ClientError as exc:
-            error = exc.response.get("Error", {})
-            print(
-                "Cognito resend error:",
-                error.get("Code"),
-                error.get("Message"),
-            )
-            raise RuntimeError(
-                "Could not resend the confirmation code."
-            ) from exc
+            error_code = exc.response.get("Error", {}).get("Code", "")
+
+        messages = {
+            "UserNotFoundException": "The account was not found.",
+            "NotAuthorizedException": "The confirmation code cannot be resent for this account.",
+            "TooManyRequestsException": "Too many requests. Please try again later.",
+            "LimitExceededException": "The resend limit has been reached. Try again later.",
+        }
+
+        if error_code in messages:
+            raise ValueError(messages[error_code]) from None
+
+        raise RuntimeError(
+            "Could not resend the confirmation code."
+        ) from exc
 
 #User login method
     
@@ -189,7 +201,10 @@ class AuthService:
 
         except ClientError as exc:
             error_code = exc.response.get("Error", {}).get("Code", "")
-            print("Cognito login error code:", error_code)
+            logger.warning(
+    "Cognito login rejected | error_code=%s",
+    error_code,
+)
 
             if error_code in {
                 "NotAuthorizedException",
@@ -197,7 +212,7 @@ class AuthService:
             }:
                 raise ValueError(
                     "Invalid email or password."
-                ) from exc
+                ) from None
 
             if error_code == "UserNotConfirmedException":
                 raise ValueError(
@@ -224,62 +239,42 @@ class AuthService:
     @staticmethod
     async def refresh_session(
         refresh_token: str,
-        username: str,
     ) -> dict:
-        username = username.strip()
+
         try:
             result = await asyncio.to_thread(
-                cognito.initiate_auth,
-                ClientId=settings.cognito_client_id,
-                AuthFlow="REFRESH_TOKEN_AUTH",
-                AuthParameters={
-                    "REFRESH_TOKEN": refresh_token,
-                    "SECRET_HASH": calculate_secret_hash(username),
-                },
+                refresh_cognito_session,
+                refresh_token,
             )
 
-            tokens = result.get("AuthenticationResult")
-
-            if not tokens or not tokens.get("AccessToken"):
+            if not result:
                 raise RuntimeError(
-                    "Cognito did not return a refreshed access token."
+                    "Cognito returned an empty authentication result."
                 )
 
             return {
-                "access_token": tokens["AccessToken"],
-                "id_token": tokens.get("IdToken"),
-                "expires_in": tokens["ExpiresIn"],
-                "token_type": tokens.get("TokenType", "Bearer"),
+                "access_token": result["AccessToken"],
+                "id_token": result.get("IdToken"),
+                "expires_in": result["ExpiresIn"],
+                "token_type": result["TokenType"],
+                "refresh_token": result.get("RefreshToken"),
             }
 
         except ClientError as exc:
-            error = exc.response.get("Error", {})
-
-            print("Cognito refresh error code:", error.get("Code"))
-            print("Cognito refresh error message:", error.get("Message"))
-
-            error_code = error.get("Code", "")
+            error_code = exc.response.get("Error", {}).get("Code", "")
 
             if error_code in {
                 "NotAuthorizedException",
-                "UserNotFoundException",
+                "InvalidParameterException",
             }:
                 raise ValueError(
-                    "The refresh token is invalid or expired."
-                ) from exc
-
-            if error_code in {
-                "TooManyRequestsException",
-                "LimitExceededException",
-            }:
-                raise ValueError(
-                    "Too many refresh attempts. Try again later."
-                ) from exc
+                    "Your session has expired or been revoked. Please log in again."
+                ) from None
 
             raise RuntimeError(
-                "Cognito session refresh failed."
+                "Unable to refresh your session. Please try again later."
             ) from exc
-
+        
     @staticmethod
     async def logout(access_token: str) -> dict:
         try:
@@ -302,7 +297,7 @@ class AuthService:
             }:
                 raise ValueError(
                     "The access token is invalid or expired."
-                ) from exc
+                ) from None
 
             if error_code in {
                 "TooManyRequestsException",
@@ -310,11 +305,13 @@ class AuthService:
             }:
                 raise ValueError(
                     "Too many logout attempts. Try again later."
-                ) from exc
+                ) from None
 
             raise RuntimeError(
                 "Cognito logout failed."
             ) from exc
+
+        
     @staticmethod
     async def get_authenticated_identity(
         access_token: str,

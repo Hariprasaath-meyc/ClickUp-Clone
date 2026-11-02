@@ -22,9 +22,7 @@ jwks_client = PyJWKClient(JWKS_URL)
 
 
 def _verify_access_token(token: str) -> dict:
-    signing_key = jwks_client.get_signing_key_from_jwt(
-        token
-    )
+    signing_key = jwks_client.get_signing_key_from_jwt(token)
 
     claims = jwt.decode(
         token,

@@ -24,3 +24,17 @@ class UpdateWorkspaceInput:
 class SlugAvailabilityType:
     slug: str
     available: bool
+
+@strawberry.input
+class CreateWorkspaceInput:
+    name: str
+    slug: str
+
+
+@strawberry.type
+class WorkspaceResult:
+    id: strawberry.ID
+    name: str
+    slug: str
+    created_by: strawberry.ID
+    created_at: datetime

@@ -1,5 +1,6 @@
-import strawberry
 from datetime import datetime
+
+import strawberry
 
 
 @strawberry.type
@@ -8,6 +9,13 @@ class UserProfileResult:
     avatar_url: str | None
     created_at: datetime
     updated_at: datetime
+
+
+@strawberry.type
+class MeResult:
+    id: strawberry.ID
+    email: str
+    profile: UserProfileResult
 
 
 @strawberry.input
