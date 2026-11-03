@@ -181,8 +181,10 @@ class InvitationService:
         db: AsyncSession,
         invitation_id: UUID,
         workspace_id: UUID,
+        invited_by: UUID,
     ) -> WorkspaceInvitation:
 
+        # Step 1: Retrieve invitation.
         invitation = await InvitationRepository.get_by_id(
             db=db,
             invitation_id=invitation_id,
@@ -191,11 +193,19 @@ class InvitationService:
         if invitation is None or invitation.workspace_id != workspace_id:
             raise ValueError("Invitation not found.")
 
+        # Step 2: Verify original inviter.
+        if invitation.invited_by != invited_by:
+            raise ValueError(
+                "Only the user who sent this invitation can revoke it."
+            )
+
+        # Step 3: Verify invitation status.
         if invitation.status != InvitationStatus.PENDING:
             raise ValueError(
                 "Only pending invitations can be revoked."
             )
 
+        # Step 4: Revoke invitation.
         invitation.status = InvitationStatus.REVOKED
 
         await InvitationRepository.update(

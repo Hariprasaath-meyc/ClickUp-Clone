@@ -409,6 +409,8 @@ class WorkspaceMutation:
                 db=db,
                 invitation_id=invitation_id,
                 workspace_id=workspace_id,
+                invited_by=user.id,
+                
             )
 
             await db.commit()
