@@ -64,3 +64,35 @@ class RoleService:
         )
 
         return list(result.scalars().all())
+
+    @staticmethod
+    async def get_role_by_id(
+        db: AsyncSession,
+        workspace_id: UUID,
+        role_id: UUID,
+    ) -> Role | None:
+
+        result = await db.execute(
+            select(Role).where(
+                Role.id == role_id,
+                Role.workspace_id == workspace_id,
+            )
+        )
+
+        return result.scalar_one_or_none()
+    
+    @staticmethod
+    async def get_role_by_key(
+        db: AsyncSession,
+        workspace_id: UUID,
+        role_key: str,
+    ) -> Role | None:
+
+        result = await db.execute(
+            select(Role).where(
+                Role.role_key == role_key,
+                Role.workspace_id == workspace_id,
+            )
+        )
+
+        return result.scalar_one_or_none()

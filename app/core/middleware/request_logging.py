@@ -30,9 +30,12 @@ class RequestLoggingMiddleware:
         async def send_with_request_id(message):
 
             if message["type"] == "http.response.start":
-
-                headers = list(message.get("headers", []))
-
+                #Avoid duplicate request ID headers.
+                headers = [
+                    (key, value)
+                    for key, value in message.get("headers", [])
+                    if key.lower() != b"x-request-id"
+                ]
                 headers.append((
                     b"x-request-id",
                     request_id.encode("utf-8"),

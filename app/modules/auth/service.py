@@ -1,18 +1,18 @@
 
 import asyncio
 import base64
-import code
-import email
 import hashlib
 import hmac
-from pyexpat.errors import messages
-from venv import logger
+import logging
 
 import boto3
 from botocore.exceptions import ClientError
 
 from app.core.config import settings
-from app.modules.auth.cognito import get_cognito_client, refresh_cognito_session
+from app.modules.auth.cognito import (
+    get_cognito_client,
+    refresh_cognito_session,
+)
 
 
 cognito = boto3.client(
@@ -129,8 +129,10 @@ class AuthService:
                 "Cognito confirmation failed."
             ) from exc
         
+ 
     @staticmethod
     async def resend_confirmation_code(email: str) -> dict:
+
         try:
             result = await asyncio.to_thread(
                 cognito.resend_confirmation_code,
@@ -147,19 +149,27 @@ class AuthService:
         except ClientError as exc:
             error_code = exc.response.get("Error", {}).get("Code", "")
 
-        messages = {
-            "UserNotFoundException": "The account was not found.",
-            "NotAuthorizedException": "The confirmation code cannot be resent for this account.",
-            "TooManyRequestsException": "Too many requests. Please try again later.",
-            "LimitExceededException": "The resend limit has been reached. Try again later.",
-        }
+            messages = {
+                "UserNotFoundException":
+                    "The account was not found.",
 
-        if error_code in messages:
-            raise ValueError(messages[error_code]) from None
+                "NotAuthorizedException":
+                    "The confirmation code cannot be resent for this account.",
 
-        raise RuntimeError(
-            "Could not resend the confirmation code."
-        ) from exc
+                "TooManyRequestsException":
+                    "Too many requests. Please try again later.",
+
+                "LimitExceededException":
+                    "The resend limit has been reached. Try again later.",
+            }
+
+            if error_code in messages:
+                raise ValueError(messages[error_code]) from None
+
+            raise RuntimeError(
+                "Could not resend the confirmation code."
+            ) from exc
+
 
 #User login method
     

@@ -34,7 +34,7 @@ class Permission(StrEnum):
     COMMENTS_UPDATE = "comments.update"
     COMMENTS_DELETE = "comments.delete"
 
-# Task tag permissions
+    # Task tag permissions
     TAGS_CREATE = "tags.create"
     TAGS_READ = "tags.read"
     TAGS_UPDATE = "tags.update"

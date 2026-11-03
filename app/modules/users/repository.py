@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-
+from sqlalchemy import func, select
 from app.modules.users.models import User
 from app.modules.users.profile_models import UserProfile
 
@@ -31,13 +31,18 @@ class UserRepository:
 
     @staticmethod
     async def get_by_email(
-        session: AsyncSession,
-        email: str,
-    ) -> User | None:
-        result = await session.execute(
-            select(User).where(User.email == email)
-        )
-        return result.scalar_one_or_none()
+            session: AsyncSession,
+            email: str,
+        ) -> User | None:
+            normalized_email = email.strip().lower()
+
+            result = await session.execute(
+                select(User).where(
+                    func.lower(User.email) == normalized_email
+                )
+            )
+
+            return result.scalar_one_or_none()
 
     @staticmethod
     async def get_by_cognito_sub(

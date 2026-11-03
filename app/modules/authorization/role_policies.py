@@ -77,6 +77,7 @@ ROLE_POLICIES: dict[str, set[Permission]] = {
 
         # Tasks
         Permission.TASKS_CREATE,
+        Permission.TASKS_READ,
         Permission.TASKS_UPDATE,
 
         # Comments

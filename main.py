@@ -1,34 +1,30 @@
-from contextlib import asynccontextmanager
-from urllib import request
-from fastapi import FastAPI
-from app.core.logging.config import setup_logging
-from fastapi import Depends, FastAPI, Request
-from graphql import GraphQLError
-import jwt
-from sqlalchemy.ext.asyncio import AsyncSession
-from strawberry.fastapi import GraphQLRouter
+
 import logging
-from app.core.config import settings
+from contextlib import asynccontextmanager
+
+import jwt
+from fastapi import Depends, FastAPI, Request
+from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi.middleware.cors import CORSMiddleware
+from app.core.logging.config import setup_logging
 from app.core.middleware.request_logging import RequestLoggingMiddleware
 from app.db.session import engine, get_db
+from app.graphql.error_handler import CentralizedGraphQLRouter
 from app.graphql.schema import schema
 from app.modules.auth.token_service import verify_access_token
-from app.graphql.error_handler import (
-    CentralizedGraphQLRouter,
-)
 
 
 # Configure logging before application initialization.
-
 setup_logging()
 
 logger = logging.getLogger(__name__)
 
 
-
+# Verify the Cognito access token.
 async def get_authenticated_claims(
     request: Request,
 ) -> dict | None:
+
     authorization = request.headers.get("Authorization")
 
     if not authorization:
@@ -50,12 +46,13 @@ async def get_authenticated_claims(
         return None
 
 
+# Build the GraphQL request context.
 async def get_context(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    authorization = request.headers.get("Authorization")
 
+    authorization = request.headers.get("Authorization")
     access_token = None
 
     if authorization:
@@ -77,22 +74,34 @@ async def get_context(
     }
 
 
+# Application lifespan.
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
     await engine.dispose()
 
+
 app = FastAPI(lifespan=lifespan)
 
-# Register middleware.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173"
+    ],
+    allow_credentials=True,
+    allow_methods=["POST", "OPTIONS"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization"
+    ],
+)
+
+# Register request logging middleware.
 app.add_middleware(RequestLoggingMiddleware)
 
 
-# Register centralized GraphQL router.
-graphql_router = CentralizedGraphQLRouter(
-    schema,
-)
-graphql_app = GraphQLRouter(
+# Register centralized GraphQL error handling.
+graphql_app = CentralizedGraphQLRouter(
     schema,
     context_getter=get_context,
 )
@@ -102,8 +111,8 @@ app.include_router(
     prefix="/graphql",
 )
 
+
+# Health check endpoint.
 @app.get("/health")
-def health_check():
+async def health_check():
     return {"status": "ok"}
-
-

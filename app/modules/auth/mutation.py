@@ -1,10 +1,11 @@
+
 import strawberry
 
 from graphql import GraphQLError
 from pydantic import EmailStr, TypeAdapter, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from strawberry.types import Info
-from app import db
+
 from app.modules.auth.authorization import require_authenticated_user
 from app.modules.auth.service import AuthService
 from app.modules.auth.types import (
@@ -22,6 +23,7 @@ email_validator = TypeAdapter(EmailStr)
 @strawberry.type
 class AuthMutation:
 
+    # Signup Mutation
     @strawberry.mutation
     async def signup(
         self,
@@ -32,7 +34,9 @@ class AuthMutation:
     ) -> SignupResult:
 
         try:
-            validated_email = str(email_validator.validate_python(email))
+            validated_email = str(
+                email_validator.validate_python(email)
+            )
 
             result = await AuthService.signup(
                 email=validated_email,
@@ -41,21 +45,23 @@ class AuthMutation:
             )
 
             return SignupResult(
-    confirmation_required=not result["confirmed"],
-    message=(
-        "Signup successful. Please verify your email."
-        if not result["confirmed"]
-        else "Signup successful."
-    ),
-)
-        except ValidationError:
-            raise GraphQLError("Invalid email address.")
+                confirmation_required=not result["confirmed"],
+                message=(
+                    "Signup successful. Please verify your email."
+                    if not result["confirmed"]
+                    else "Signup successful."
+                ),
+            )
+
+        except ValidationError as exc:
+            raise GraphQLError(
+                "Invalid email address."
+            ) from exc
 
         except ValueError as exc:
-            raise GraphQLError(str(exc))
+            raise GraphQLError(str(exc)) from exc
 
-    
-
+    # Confirm Signup Mutation
     @strawberry.mutation
     async def confirm_signup(
         self,
@@ -65,7 +71,9 @@ class AuthMutation:
     ) -> SignupResult:
 
         try:
-            validated_email = str(email_validator.validate_python(email))
+            validated_email = str(
+                email_validator.validate_python(email)
+            )
 
             result = await AuthService.confirm_signup(
                 email=validated_email,
@@ -73,19 +81,19 @@ class AuthMutation:
             )
 
             return SignupResult(
-                    confirmation_required=not result["success"],
-                    message=result["message"],
-                )
+                confirmation_required=not result["success"],
+                message=result["message"],
+            )
 
-        except ValidationError:
-            raise GraphQLError("Invalid email address.")
+        except ValidationError as exc:
+            raise GraphQLError(
+                "Invalid email address."
+            ) from exc
 
         except ValueError as exc:
-            raise GraphQLError(str(exc))
+            raise GraphQLError(str(exc)) from exc
 
-       
-
-
+    # Resend Confirmation Code Mutation
     @strawberry.mutation
     async def resend_confirmation_code(
         self,
@@ -94,26 +102,28 @@ class AuthMutation:
     ) -> SignupResult:
 
         try:
-            validated_email = str(email_validator.validate_python(email))
+            validated_email = str(
+                email_validator.validate_python(email)
+            )
 
             result = await AuthService.resend_confirmation_code(
                 email=validated_email,
             )
 
             return SignupResult(
-    confirmation_required=True,
-    message=result["message"],
-)
+                confirmation_required=True,
+                message=result["message"],
+            )
 
-        except ValidationError:
-            raise GraphQLError("Invalid email address.")
+        except ValidationError as exc:
+            raise GraphQLError(
+                "Invalid email address."
+            ) from exc
 
         except ValueError as exc:
-            raise GraphQLError(str(exc))
+            raise GraphQLError(str(exc)) from exc
 
-     
-
-
+    # Login Mutation
     @strawberry.mutation
     async def login(
         self,
@@ -125,7 +135,9 @@ class AuthMutation:
         db: AsyncSession = info.context["db"]
 
         try:
-            validated_email = str(email_validator.validate_python(email))
+            validated_email = str(
+                email_validator.validate_python(email)
+            )
 
             # Step 1: Authenticate with Cognito.
             result = await AuthService.login(
@@ -133,7 +145,7 @@ class AuthMutation:
                 password=password,
             )
 
-            # Step 2: Retrieve verified identity from Cognito access token.
+            # Step 2: Retrieve verified identity from Cognito.
             identity = await AuthService.get_authenticated_identity(
                 access_token=result["access_token"],
             )
@@ -151,25 +163,27 @@ class AuthMutation:
 
             return LoginResult(**result)
 
-        except ValidationError:
+        except ValidationError as exc:
             await db.rollback()
-            raise GraphQLError("Invalid email address.")
+            raise GraphQLError(
+                "Invalid email address."
+            ) from exc
 
         except ValueError as exc:
             await db.rollback()
-            raise GraphQLError(str(exc))
+            raise GraphQLError(str(exc)) from exc
 
         except Exception:
             await db.rollback()
             raise
 
-
+    # Refresh Session Mutation
     @strawberry.mutation
     async def refresh_session(
-    self,
-    info: Info,
-    refresh_token: str,
-) -> RefreshSessionResult:
+        self,
+        info: Info,
+        refresh_token: str,
+    ) -> RefreshSessionResult:
 
         try:
             result = await AuthService.refresh_session(
@@ -179,30 +193,28 @@ class AuthMutation:
             return RefreshSessionResult(**result)
 
         except ValueError as exc:
-            raise GraphQLError(str(exc))
+            raise GraphQLError(str(exc)) from exc
 
-       
+    # Logout Mutation
     @strawberry.mutation
     async def logout(
-            self,
-            info: Info,
-        ) -> LogoutResult:
-    
-            try:
-                require_authenticated_user(info)
+        self,
+        info: Info,
+    ) -> LogoutResult:
 
-                access_token = info.context.get("access_token")
+        try:
+            require_authenticated_user(info)
 
-                if not access_token:
-                    raise GraphQLError("Access token not found.")
+            access_token = info.context.get("access_token")
 
-                result = await AuthService.logout(
-                    access_token=access_token,
-)
-    
-                return LogoutResult(**result)
-    
-            except ValueError as exc:
-                raise GraphQLError(str(exc))
-    
-          
+            if not access_token:
+                raise GraphQLError("Access token not found.")
+
+            result = await AuthService.logout(
+                access_token=access_token,
+            )
+
+            return LogoutResult(**result)
+
+        except ValueError as exc:
+            raise GraphQLError(str(exc)) from exc
