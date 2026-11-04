@@ -184,13 +184,15 @@ class WorkspaceMember(Base):
             ["workspace_id", "role_id"],
             ["roles.workspace_id", "roles.id"],
             name="fk_workspace_members_workspace_role",
+            ondelete="CASCADE",
         ),
     )
 
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("workspaces.id"),
+        ForeignKey("workspaces.id",ondelete="CASCADE"),
         primary_key=True,
+        nullable=False,
     )
 
     user_id: Mapped[uuid.UUID] = mapped_column(

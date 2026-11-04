@@ -11,7 +11,8 @@ from sqlalchemy.exc import IntegrityError
 from app.modules.auth.authorization import require_authenticated_user
 from app.modules.users.repository import UserRepository
 
-from app.modules.workspaces.models import Workspace
+
+from app.modules.workspaces.models.models import Workspace
 from app.modules.workspaces.repository import WorkspaceRepository
 from app.modules.workspaces.security.authorization_service import (
     AuthorizationService,

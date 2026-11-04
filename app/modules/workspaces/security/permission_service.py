@@ -2,11 +2,12 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.modules.workspaces.models import (
-    Permission,
+from app.modules.workspaces.models.models import (
+    Permission as PermissionModel,
     RolePermission,
 )
+
+
 
 
 class PermissionService:
@@ -19,10 +20,10 @@ class PermissionService:
     ) -> list[str]:
 
         result = await db.execute(
-            select(Permission.permission_key)
+            select(PermissionModel.permission_key)
             .join(
                 RolePermission,
-                RolePermission.permission_id == Permission.id,
+                RolePermission.permission_id == PermissionModel.id,
             )
             .where(
                 RolePermission.workspace_id == workspace_id,
@@ -42,15 +43,15 @@ class PermissionService:
     ) -> bool:
 
         result = await db.execute(
-            select(Permission.id)
+            select(PermissionModel.id)
             .join(
                 RolePermission,
-                RolePermission.permission_id == Permission.id,
+                RolePermission.permission_id == PermissionModel.id,
             )
             .where(
                 RolePermission.workspace_id == workspace_id,
                 RolePermission.role_id == role_id,
-                Permission.permission_key == permission_key,
+                PermissionModel.permission_key == permission_key,
             )
             .limit(1)
         )

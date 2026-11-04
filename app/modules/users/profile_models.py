@@ -15,7 +15,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 if TYPE_CHECKING:
-    from app.modules.users.profile_models import UserProfile
+    from app.modules.users.models import User
 
 
 

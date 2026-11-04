@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     DateTime,
@@ -10,11 +11,13 @@ from sqlalchemy import (
     Uuid,
     func,
 )
-from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.db.base import Base
 from app.modules.workspaces.enums import InvitationStatus
-from app.modules.workspaces.models import Role
+
+if TYPE_CHECKING:
+    from app.modules.workspaces.models.models import Role
 
 
 class WorkspaceInvitation(Base):

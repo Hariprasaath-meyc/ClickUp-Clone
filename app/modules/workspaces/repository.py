@@ -3,10 +3,9 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.workspaces.models import (
-    Workspace,
-    WorkspaceMember,
-)
+from app.modules.workspaces.models.models import Workspace, WorkspaceMember
+
+
 
 
 class WorkspaceRepository:

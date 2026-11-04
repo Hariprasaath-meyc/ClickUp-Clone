@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.workspaces.enums import InvitationStatus
-from app.modules.workspaces.invitation_models import WorkspaceInvitation
+from app.modules.workspaces.models.invitation_models import WorkspaceInvitation
 from app.modules.workspaces.models import WorkspaceMember
 from app.modules.workspaces.repositories.invitation_repository import (
     InvitationRepository,

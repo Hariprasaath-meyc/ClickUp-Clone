@@ -1,19 +1,23 @@
 
-from graphql import GraphQLError
+
 import strawberry
+from graphql import GraphQLError
 
 from app.modules.auth.mutation import AuthMutation
 
 from app.modules.users.schema import UserQuery
 from app.modules.users.mutation import UserMutation
-
-# Import the newly separated workspace queries
+from app.modules.tasks.queries import TaskQuery
 from app.modules.workspaces.mutations.membership_mutation import MembershipMutation
-from app.modules.workspaces.mutations.workspace_mutation import WorkspaceMutation
-from app.modules.workspaces.queries.workspace_query import WorkspaceQuery
-from app.modules.workspaces.queries.invitation_query import InvitationQuery
-from app.modules.workspaces.queries.membership_query import MembershipQuery
-
+from app.modules.workspaces.queries import (
+    WorkspaceQuery,
+    InvitationQuery,
+    MembershipQuery,
+)
+from app.modules.tasks.mutations import TaskMutation
+from app.modules.workspaces.mutations import (
+    Mutation as WorkspaceMutations,
+)
 
 
 
@@ -23,6 +27,7 @@ class Query(
     WorkspaceQuery,
     InvitationQuery,
     MembershipQuery,
+    TaskQuery,
 
 ):
     @strawberry.field
@@ -42,8 +47,9 @@ class Query(
 class Mutation(
     AuthMutation,
     UserMutation,
-    WorkspaceMutation,
+    WorkspaceMutations,
     MembershipMutation,
+    TaskMutation,
 ):
     pass
 
