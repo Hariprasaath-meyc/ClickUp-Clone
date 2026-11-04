@@ -9,6 +9,7 @@ from strawberry.types import Info
 from app.modules.auth.authorization import require_authenticated_user
 from app.modules.auth.service import AuthService
 from app.modules.auth.types import (
+    CodeDeliveryDetails,
     SignupResult,
     LoginResult,
     RefreshSessionResult,
@@ -113,6 +114,11 @@ class AuthMutation:
             return SignupResult(
                 confirmation_required=True,
                 message=result["message"],
+                delivery=(
+                    CodeDeliveryDetails(**result["delivery"])
+                    if result.get("delivery")
+                    else None
+                ),
             )
 
         except ValidationError as exc:

@@ -16,6 +16,8 @@ from app.modules.workspaces.models import (
 )
 
 
+
+
 async def create_workspace(
     db: AsyncSession,
     *,
@@ -129,3 +131,4 @@ async def create_workspace(
         await db.flush()
 
         return workspace
+

@@ -3,17 +3,18 @@ import asyncio
 import base64
 import hashlib
 import hmac
-import logging
+
 
 import boto3
 from botocore.exceptions import ClientError
+import logging
 
 from app.core.config import settings
 from app.modules.auth.cognito import (
     get_cognito_client,
     refresh_cognito_session,
 )
-
+logger = logging.getLogger(__name__)
 
 cognito = boto3.client(
     "cognito-idp",
@@ -141,26 +142,26 @@ class AuthService:
                 SecretHash=calculate_secret_hash(email),
             )
 
+            delivery = result.get("CodeDeliveryDetails", {})
+
             return {
+                "confirmation_required": True,
                 "message": "A new confirmation code was requested.",
-                "delivery": result.get("CodeDeliveryDetails", {}),
+                "delivery": {
+                    "destination": delivery.get("Destination"),
+                    "delivery_medium": delivery.get("DeliveryMedium"),
+                    "attribute_name": delivery.get("AttributeName"),
+                },
             }
 
         except ClientError as exc:
             error_code = exc.response.get("Error", {}).get("Code", "")
 
             messages = {
-                "UserNotFoundException":
-                    "The account was not found.",
-
-                "NotAuthorizedException":
-                    "The confirmation code cannot be resent for this account.",
-
-                "TooManyRequestsException":
-                    "Too many requests. Please try again later.",
-
-                "LimitExceededException":
-                    "The resend limit has been reached. Try again later.",
+                "UserNotFoundException": "The account was not found.",
+                "NotAuthorizedException": "The confirmation code cannot be resent for this account.",
+                "TooManyRequestsException": "Too many requests. Please try again later.",
+                "LimitExceededException": "The resend limit has been reached. Try again later.",
             }
 
             if error_code in messages:
@@ -169,7 +170,6 @@ class AuthService:
             raise RuntimeError(
                 "Could not resend the confirmation code."
             ) from exc
-
 
 #User login method
     
@@ -212,9 +212,9 @@ class AuthService:
         except ClientError as exc:
             error_code = exc.response.get("Error", {}).get("Code", "")
             logger.warning(
-    "Cognito login rejected | error_code=%s",
-    error_code,
-)
+                "Cognito login rejected | error_code=%s",
+                error_code,
+            )
 
             if error_code in {
                 "NotAuthorizedException",

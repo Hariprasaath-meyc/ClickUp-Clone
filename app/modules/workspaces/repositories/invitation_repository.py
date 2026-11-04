@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.workspaces.invitation_models import WorkspaceInvitation
 from app.modules.workspaces.enums import InvitationStatus
-
+from sqlalchemy.orm import selectinload
 
 class InvitationRepository:
 
@@ -76,3 +76,21 @@ class InvitationRepository:
             .order_by(WorkspaceInvitation.created_at.desc())
         )
         return list(result.scalars().all())
+
+
+     #Get Pending Invitations
+    @staticmethod
+    async def get_pending_invitations(
+        db: AsyncSession,
+        workspace_id: UUID,
+    ):
+        result = await db.execute(
+            select(WorkspaceInvitation)
+            .options(selectinload(WorkspaceInvitation.role))
+            .where(
+                WorkspaceInvitation.workspace_id == workspace_id,
+                WorkspaceInvitation.status == InvitationStatus.PENDING,
+            )
+        )
+
+        return result.scalars().all()

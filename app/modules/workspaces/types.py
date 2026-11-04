@@ -89,3 +89,13 @@ class WorkspaceInvitationType:
 class RevokeInvitationInput:
     workspace_id: strawberry.ID
     invitation_id: strawberry.ID
+
+@strawberry.input
+class DeclineInvitationInput:
+    invitation_id: strawberry.ID
+
+
+@strawberry.input
+class ResendInvitationInput:
+    workspace_id: strawberry.ID
+    invitation_id: strawberry.ID

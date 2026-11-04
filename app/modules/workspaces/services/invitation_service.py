@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.workspaces.enums import InvitationStatus
@@ -214,3 +215,95 @@ class InvitationService:
         )
 
         return invitation
+    
+    @staticmethod
+    async def decline_invitation(
+        db: AsyncSession,
+        invitation_id: UUID,
+        verified_email: str,
+    ) -> WorkspaceInvitation:
+
+        # Step 1: Retrieve invitation.
+        invitation = await InvitationRepository.get_by_id(
+            db=db,
+            invitation_id=invitation_id,
+        )
+
+        if invitation is None:
+            raise ValueError("Invitation not found.")
+
+        # Step 2: Verify that the authenticated user is the recipient.
+        if verified_email.strip().lower() != invitation.email_normalized:
+            raise ValueError(
+                "You are not authorized to decline this invitation."
+            )
+
+        # Step 3: Check invitation status.
+        if invitation.status != InvitationStatus.PENDING:
+            raise ValueError(
+                "Only pending invitations can be declined."
+            )
+
+        # Step 4: Update invitation status.
+        invitation.status = InvitationStatus.DECLINED
+
+        await InvitationRepository.update(
+            db=db,
+            invitation=invitation,
+        )
+
+        if invitation.expires_at <= datetime.now(timezone.utc):
+            raise ValueError("This invitation has expired.")
+
+        return invitation
+    
+    @staticmethod
+    async def resend_invitation(
+        db: AsyncSession,
+        invitation_id: UUID,
+        workspace_id: UUID,
+        invited_by: UUID,
+    ) -> tuple[WorkspaceInvitation, str]:
+
+        # Step 1: Retrieve invitation.
+        invitation = await InvitationRepository.get_by_id(
+            db=db,
+            invitation_id=invitation_id,
+        )
+
+        if invitation is None or invitation.workspace_id != workspace_id:
+            raise ValueError("Invitation not found.")
+
+        # Step 2: Verify original inviter.
+        if invitation.invited_by != invited_by:
+            raise ValueError(
+                "Only the original inviter can resend this invitation."
+            )
+
+        # Step 3: Validate invitation status.
+        if invitation.status not in {
+            InvitationStatus.PENDING,
+            InvitationStatus.EXPIRED,
+        }:
+            raise ValueError(
+                "This invitation cannot be resent."
+            )
+
+        # Step 4: Generate a new token.
+        raw_token = InvitationToken.generate_token()
+        token_hash = InvitationToken.hash_token(raw_token)
+
+        # Step 5: Update invitation details.
+        invitation.token_hash = token_hash
+        invitation.status = InvitationStatus.PENDING
+        invitation.expires_at = (
+            datetime.now(timezone.utc) + timedelta(days=7)
+        )
+
+        await InvitationRepository.update(
+            db=db,
+            invitation=invitation,
+        )
+
+        return invitation, raw_token
+   

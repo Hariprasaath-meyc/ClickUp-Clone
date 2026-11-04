@@ -11,9 +11,10 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
-
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.modules.workspaces.enums import InvitationStatus
+from app.modules.workspaces.models import Role
 
 
 class WorkspaceInvitation(Base):
@@ -53,6 +54,7 @@ class WorkspaceInvitation(Base):
         Uuid(as_uuid=True),
         nullable=False,
     )
+    role: Mapped["Role"] = relationship()
 
     invited_by: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
