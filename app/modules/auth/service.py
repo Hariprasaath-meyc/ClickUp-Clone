@@ -3,17 +3,20 @@ import asyncio
 import base64
 import hashlib
 import hmac
-
-
+from datetime import datetime, timezone
+import uuid
+from sqlalchemy.ext.asyncio import AsyncSession
 import boto3
 from botocore.exceptions import ClientError
 import logging
-
+from datetime import datetime, timezone, timedelta
+from app.modules.users.models import User
 from app.core.config import settings
 from app.modules.auth.cognito import (
     get_cognito_client,
     refresh_cognito_session,
 )
+from app.modules.users.repository import UserRepository
 logger = logging.getLogger(__name__)
 
 cognito = boto3.client(
@@ -286,12 +289,24 @@ class AuthService:
             ) from exc
         
     @staticmethod
-    async def logout(access_token: str) -> dict:
+    async def logout(
+        db: AsyncSession,
+        user: User,
+        access_token: str,
+    ) -> dict:
+
         try:
             await asyncio.to_thread(
                 cognito.global_sign_out,
                 AccessToken=access_token,
             )
+
+            user.tokens_valid_after = (
+                datetime.now(timezone.utc).replace(microsecond=0)
+                + timedelta(seconds=1)
+            )
+
+            await db.commit()
 
             return {
                 "success": True,
@@ -299,6 +314,8 @@ class AuthService:
             }
 
         except ClientError as exc:
+            await db.rollback()
+
             error_code = exc.response.get("Error", {}).get("Code", "")
 
             if error_code in {
@@ -317,9 +334,11 @@ class AuthService:
                     "Too many logout attempts. Try again later."
                 ) from None
 
-            raise RuntimeError(
-                "Cognito logout failed."
-            ) from exc
+            raise RuntimeError("Cognito logout failed.") from exc
+
+        except Exception:
+            await db.rollback()
+            raise
 
         
     @staticmethod

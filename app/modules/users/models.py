@@ -51,3 +51,8 @@ class User(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+
+    tokens_valid_after: Mapped[datetime | None] = mapped_column(
+    DateTime(timezone=True),
+    nullable=True,
+)

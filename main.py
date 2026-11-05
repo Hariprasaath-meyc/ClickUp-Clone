@@ -12,6 +12,7 @@ from app.db.session import engine, get_db
 from app.graphql.error_handler import CentralizedGraphQLRouter
 from app.graphql.schema import schema
 from app.modules.auth.token_service import verify_access_token
+from app.modules.users.repository import UserRepository
 
 
 # Configure logging before application initialization.
@@ -23,6 +24,7 @@ logger = logging.getLogger(__name__)
 # Verify the Cognito access token.
 async def get_authenticated_claims(
     request: Request,
+    db: AsyncSession,
 ) -> dict | None:
 
     authorization = request.headers.get("Authorization")
@@ -40,7 +42,23 @@ async def get_authenticated_claims(
         return None
 
     try:
-        return await verify_access_token(token)
+        claims = await verify_access_token(token)
+
+        user = await UserRepository.get_by_cognito_sub(
+            db,
+            claims["sub"],
+        )
+
+        if user is None:
+            return None
+
+        if user.tokens_valid_after is not None:
+            token_iat = claims["iat"]
+
+            if token_iat <= user.tokens_valid_after.timestamp():
+                return None
+
+        return claims
 
     except (jwt.InvalidTokenError, jwt.PyJWKClientError):
         return None
@@ -65,7 +83,10 @@ async def get_context(
         ):
             access_token = token
 
-    claims = await get_authenticated_claims(request)
+    claims = await get_authenticated_claims(
+        request=request,
+        db=db,
+    )
 
     return {
         "db": db,

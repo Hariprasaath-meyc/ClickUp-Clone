@@ -15,6 +15,7 @@ from app.modules.auth.types import (
     RefreshSessionResult,
     LogoutResult,
 )
+from app.modules.users.repository import UserRepository
 from app.modules.users.service import UserService
 
 
@@ -208,19 +209,34 @@ class AuthMutation:
         info: Info,
     ) -> LogoutResult:
 
+        db = info.context["db"]
+
         try:
-            require_authenticated_user(info)
+            claims = require_authenticated_user(info)
 
             access_token = info.context.get("access_token")
 
             if not access_token:
                 raise GraphQLError("Access token not found.")
 
+            user = await UserRepository.get_by_cognito_sub(
+                db,
+                claims["sub"],
+            )
+
+            if user is None:
+                raise GraphQLError("User not found.")
+
             result = await AuthService.logout(
+                db=db,
+                user=user,
                 access_token=access_token,
             )
 
             return LogoutResult(**result)
+
+        except GraphQLError:
+            raise
 
         except ValueError as exc:
             raise GraphQLError(str(exc)) from exc
