@@ -19,6 +19,12 @@ from app.modules.workspaces.models import (
     Permission,
     RolePermission,
 )
+from app.modules.tasks.models import (
+    Task,
+    TaskAssignee,
+    TaskComment,
+    TaskHistory,
+)
                                       
 # Importing Base registers the User model and its table metadata.
 target_metadata = Base.metadata

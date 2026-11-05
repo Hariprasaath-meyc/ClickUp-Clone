@@ -57,6 +57,20 @@ class TaskQuery:
                     created_at=task.created_at,
                     updated_at=task.updated_at,
                     deleted_at=task.deleted_at,
+                    assignees=[
+                        TaskAssigneeType(
+                            workspace_id=item.workspace_id,
+                            task_id=item.task_id,
+                            user_id=item.user_id,
+                            assigned_by=item.assigned_by,
+                            assigned_at=item.assigned_at,
+                        )
+                        for item in await TaskAssigneeRepository.get_task_assignees(
+                            db=db,
+                            workspace_id=task.workspace_id,
+                            task_id=task.id,
+                        )
+                    ],
                 )
                 for task in tasks
             ]

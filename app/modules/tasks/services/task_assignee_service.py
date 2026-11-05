@@ -13,7 +13,8 @@ from app.modules.workspaces.models import WorkspaceMember
 from app.modules.workspaces.security.authorization_service import (
     AuthorizationService,
 )
-
+from app.modules.tasks.services.task_history_service import TaskHistoryService
+from app.modules.tasks.enums import TaskHistoryAction
 
 class TaskAssigneeService:
 
@@ -91,12 +92,17 @@ class TaskAssigneeService:
         ]
 
         if new_user_ids:
-            await TaskAssigneeRepository.assign_users(
+            await TaskHistoryService.record_activity(
                 db=db,
                 workspace_id=workspace_id,
                 task_id=task_id,
-                user_ids=new_user_ids,
-                assigned_by=assigned_by,
+                actor_id=assigned_by,
+                action=TaskHistoryAction.TASK_ASSIGNED,
+                changes={
+                    "assigned_user_ids": [
+                        str(user_id) for user_id in new_user_ids
+                    ]
+                },
             )
 
         # 7. Return all current assignments
@@ -140,12 +146,49 @@ class TaskAssigneeService:
         user_ids = list(dict.fromkeys(user_ids))
 
         # 4. Remove selected assignments
-        return await TaskAssigneeRepository.unassign_users(
+        existing_assignments = (
+    await TaskAssigneeRepository.get_task_assignees(
+        db,
+        workspace_id,
+        task_id,
+    )
+)
+
+        existing_user_ids = {
+            assignment.user_id
+            for assignment in existing_assignments
+        }
+
+        removed_user_ids = [
+            user_id
+            for user_id in user_ids
+            if user_id in existing_user_ids
+        ]
+
+        if not removed_user_ids:
+            return 0
+
+        removed_count = await TaskAssigneeRepository.unassign_users(
             db=db,
             workspace_id=workspace_id,
             task_id=task_id,
-            user_ids=user_ids,
+            user_ids=removed_user_ids,
         )
+
+        await TaskHistoryService.record_activity(
+            db=db,
+            workspace_id=workspace_id,
+            task_id=task_id,
+            actor_id=requested_by,
+            action=TaskHistoryAction.TASK_UNASSIGNED,
+            changes={
+                "unassigned_user_ids": [
+                    str(user_id) for user_id in removed_user_ids
+                ]
+            },
+        )
+
+        return removed_count
     @staticmethod
     async def get_my_assigned_tasks(
         db: AsyncSession,

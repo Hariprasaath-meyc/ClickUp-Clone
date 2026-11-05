@@ -14,7 +14,7 @@ from app.modules.tasks.types import (
 )
 from app.modules.tasks.types import UpdateTaskInput
 from app.modules.tasks.services import TaskAssigneeService
-
+from app.modules.tasks.repository import TaskAssigneeRepository
 from app.modules.tasks.types import (
     AssignTaskInput,
     UnassignTaskInput,
@@ -36,11 +36,8 @@ class TaskMutation:
         db: AsyncSession = info.context["db"]
 
         try:
-            # 1. Authenticate the request.
             claims = require_authenticated_user(info)
 
-            # 2. Resolve the authenticated Cognito user
-            #    to the local PostgreSQL user.
             user = await UserRepository.get_by_cognito_sub(
                 db,
                 claims["sub"],
@@ -49,7 +46,6 @@ class TaskMutation:
             if user is None:
                 raise GraphQLError("User account not found.")
 
-            # 3. Delegate business logic to the service.
             task = await TaskService.create_task(
                 db=db,
                 workspace_id=input.workspace_id,
@@ -62,7 +58,13 @@ class TaskMutation:
                 parent_task_id=input.parent_task_id,
             )
 
-            # 4. Commit the transaction.
+            # Retrieve current task assignments
+            assignments = await TaskAssigneeRepository.get_task_assignees(
+                db=db,
+                workspace_id=task.workspace_id,
+                task_id=task.id,
+            )
+
             await db.commit()
 
             return TaskResult(
@@ -81,6 +83,16 @@ class TaskMutation:
                     created_at=task.created_at,
                     updated_at=task.updated_at,
                     deleted_at=task.deleted_at,
+                    assignees=[
+                        TaskAssigneeType(
+                            workspace_id=item.workspace_id,
+                            task_id=item.task_id,
+                            user_id=item.user_id,
+                            assigned_by=item.assigned_by,
+                            assigned_at=item.assigned_at,
+                        )
+                        for item in assignments
+                    ],
                 ),
             )
 
@@ -108,10 +120,8 @@ class TaskMutation:
         db: AsyncSession = info.context["db"]
 
         try:
-            # 1. Authenticate the request
             claims = require_authenticated_user(info)
 
-            # 2. Resolve Cognito identity to local user
             user = await UserRepository.get_by_cognito_sub(
                 db,
                 claims["sub"],
@@ -120,7 +130,6 @@ class TaskMutation:
             if user is None:
                 raise GraphQLError("User account not found.")
 
-            # 3. Extract only fields supplied by the client
             update_data = {}
 
             if input.title is not None:
@@ -138,7 +147,6 @@ class TaskMutation:
             if input.due_date is not None:
                 update_data["due_date"] = input.due_date.value
 
-            # 4. Call service
             task = await TaskService.update_task(
                 db=db,
                 task_id=input.task_id,
@@ -147,7 +155,13 @@ class TaskMutation:
                 update_data=update_data,
             )
 
-            # 5. Commit transaction
+            # Retrieve current task assignments
+            assignments = await TaskAssigneeRepository.get_task_assignees(
+                db=db,
+                workspace_id=task.workspace_id,
+                task_id=task.id,
+            )
+
             await db.commit()
 
             return TaskResult(
@@ -166,6 +180,16 @@ class TaskMutation:
                     created_at=task.created_at,
                     updated_at=task.updated_at,
                     deleted_at=task.deleted_at,
+                    assignees=[
+                        TaskAssigneeType(
+                            workspace_id=item.workspace_id,
+                            task_id=item.task_id,
+                            user_id=item.user_id,
+                            assigned_by=item.assigned_by,
+                            assigned_at=item.assigned_at,
+                        )
+                        for item in assignments
+                    ],
                 ),
             )
 

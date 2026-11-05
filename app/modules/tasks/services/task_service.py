@@ -10,7 +10,8 @@ from app.modules.tasks.repository import TaskRepository
 from app.modules.workspaces.security.authorization_service import (
     AuthorizationService,
 )
-
+from app.modules.tasks.services.task_history_service import TaskHistoryService
+from app.modules.tasks.enums import TaskHistoryAction
 
 class TaskService:
 
@@ -68,10 +69,38 @@ class TaskService:
         }
 
         # 5. Create the task through the repository.
-        return await TaskRepository.create(
-            db,
-            task_data,
+        task = await TaskRepository.create(
+        db=db,
+        task_data=task_data,
+    )
+
+        await TaskHistoryService.record_activity(
+            db=db,
+            workspace_id=workspace_id,
+            task_id=task.id,
+            actor_id=user_id,
+            action=TaskHistoryAction.TASK_CREATED,
+            changes={
+                "title": task.title,
+                "description": task.description,
+                "status": task.status.value,
+                "priority": task.priority.value,
+                "due_date": (
+                    task.due_date.isoformat()
+                    if task.due_date
+                    else None
+                ),
+                "parent_task_id": (
+                    str(task.parent_task_id)
+                    if task.parent_task_id
+                    else None
+                ),
+            },
         )
+
+        return task
+
+        
 
     @staticmethod
     async def update_task(
@@ -125,12 +154,55 @@ class TaskService:
 
             update_data["title"] = update_data["title"].strip()
 
-        # 5. Update through repository
-        return await TaskRepository.update(
-            db,
-            task,
-            update_data,
+        
+        # 5. Capture existing values before updating
+        old_values = {
+            field: getattr(task, field)
+            for field in update_data
+        }
+
+        # 6. Update through repository
+        task = await TaskRepository.update(
+            db=db,
+            task=task,
+            update_data=update_data,
         )
+
+        # 7. Compare old and new values
+        changes = {}
+
+        for field, old_value in old_values.items():
+            new_value = getattr(task, field)
+
+            if old_value != new_value:
+
+                if isinstance(old_value, (TaskStatus, TaskPriority)):
+                    old_value = old_value.value
+                elif isinstance(old_value, datetime):
+                    old_value = old_value.isoformat()
+
+                if isinstance(new_value, (TaskStatus, TaskPriority)):
+                    new_value = new_value.value
+                elif isinstance(new_value, datetime):
+                    new_value = new_value.isoformat()
+
+                changes[field] = {
+                    "old": old_value,
+                    "new": new_value,
+                }
+
+        # 8. Record history only if something actually changed
+        if changes:
+            await TaskHistoryService.record_activity(
+                db=db,
+                workspace_id=workspace_id,
+                task_id=task_id,
+                actor_id=user_id,
+                action=TaskHistoryAction.TASK_UPDATED,
+                changes=changes,
+            )
+
+        return task
 
     @staticmethod
     async def get_workspace_tasks(
