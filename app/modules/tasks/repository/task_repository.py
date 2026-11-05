@@ -1,4 +1,5 @@
 
+from datetime import datetime, timezone
 import uuid
 
 from sqlalchemy import select
@@ -63,6 +64,17 @@ class TaskRepository:
 
         for field, value in update_data.items():
             setattr(task, field, value)
+
+        await db.flush()
+
+        return task
+    
+    @staticmethod
+    async def soft_delete(
+        db: AsyncSession,
+        task,
+    ):
+        task.deleted_at = datetime.now(timezone.utc)
 
         await db.flush()
 

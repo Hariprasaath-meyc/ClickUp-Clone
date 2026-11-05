@@ -252,3 +252,55 @@ class TaskService:
             raise ValueError("Task not found.")
 
         return task
+    
+    @staticmethod
+    async def delete_task(
+        db: AsyncSession,
+        task_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        user_id: uuid.UUID,
+    ):
+        # 1. Check deletion permission
+        await AuthorizationService.require_permission(
+            db=db,
+            user_id=user_id,
+            workspace_id=workspace_id,
+            permission_key=Permission.TASKS_DELETE.value,
+        )
+
+        # 2. Retrieve task
+        task = await TaskRepository.get_by_id(
+            db=db,
+            task_id=task_id,
+            workspace_id=workspace_id,
+        )
+
+        if task is None:
+            raise ValueError("Task not found.")
+
+        # 3. Capture task details before deletion
+        changes = {
+            "title": task.title,
+            "description": task.description,
+            "status": task.status.value,
+            "priority": task.priority.value,
+            "created_by": str(task.created_by),
+        }
+
+        # 4. Soft-delete task
+        await TaskRepository.soft_delete(
+            db=db,
+            task=task,
+        )
+
+        # 5. Record deletion activity
+        await TaskHistoryService.record_activity(
+            db=db,
+            workspace_id=workspace_id,
+            task_id=task_id,
+            actor_id=user_id,
+            action=TaskHistoryAction.TASK_DELETED,
+            changes=changes,
+        )
+
+        return True

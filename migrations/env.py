@@ -25,6 +25,7 @@ from app.modules.tasks.models import (
     TaskComment,
     TaskHistory,
 )
+from app.modules.tags.models import Tag, TaskTag
                                       
 # Importing Base registers the User model and its table metadata.
 target_metadata = Base.metadata

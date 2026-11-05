@@ -5,6 +5,7 @@ from graphql import GraphQLError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.authorization import require_authenticated_user
+from app.modules.tasks.types.task_types import DeleteTaskInput, DeleteTaskResult
 from app.modules.users.repository import UserRepository
 from app.modules.tasks.services import TaskService
 from app.modules.tasks.types import (
@@ -322,4 +323,56 @@ class TaskMutation:
             await db.rollback()
             raise GraphQLError(
                 "Unable to unassign task."
+            ) from exc
+        
+    @strawberry.mutation
+    async def delete_task(
+        self,
+        info: strawberry.Info,
+        input: DeleteTaskInput,
+    ) -> DeleteTaskResult:
+
+        db: AsyncSession = info.context["db"]
+
+        try:
+            # 1. Authenticate requester
+            claims = require_authenticated_user(info)
+
+            # 2. Resolve Cognito identity to local user
+            user = await UserRepository.get_by_cognito_sub(
+                db,
+                claims["sub"],
+            )
+
+            if user is None:
+                raise GraphQLError("User account not found.")
+
+            # 3. Call deletion service
+            await TaskService.delete_task(
+                db=db,
+                task_id=input.task_id,
+                workspace_id=input.workspace_id,
+                user_id=user.id,
+            )
+
+            # 4. Commit task deletion and audit history together
+            await db.commit()
+
+            return DeleteTaskResult(
+                success=True,
+                message="Task deleted successfully.",
+            )
+
+        except GraphQLError:
+            await db.rollback()
+            raise
+
+        except ValueError as exc:
+            await db.rollback()
+            raise GraphQLError(str(exc)) from exc
+
+        except Exception as exc:
+            await db.rollback()
+            raise GraphQLError(
+                "Unable to delete task."
             ) from exc

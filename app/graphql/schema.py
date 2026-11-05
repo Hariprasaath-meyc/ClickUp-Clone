@@ -5,6 +5,8 @@ from graphql import GraphQLError
 
 from app.modules.auth.mutation import AuthMutation
 
+from app.modules.tags.mutations.tag_mutation import TagMutation
+from app.modules.tags.queries.tag_query import TagQuery
 from app.modules.tasks.mutations.task_comment_mutation import TaskCommentMutation
 from app.modules.tasks.queries.task_history_query import TaskHistoryQuery
 from app.modules.users.schema import UserQuery
@@ -31,6 +33,8 @@ class Query(
     MembershipQuery,
     TaskQuery,
     TaskHistoryQuery,
+    TagQuery
+    
 
 ):
     @strawberry.field
@@ -54,6 +58,8 @@ class Mutation(
     MembershipMutation,
     TaskMutation,
     TaskCommentMutation,
+    TagMutation
+    
     
 ):
     pass

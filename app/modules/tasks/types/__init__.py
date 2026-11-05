@@ -28,3 +28,4 @@ from app.modules.tasks.types.task_comment_types import (
 from app.modules.tasks.types.task_history_types import (
     TaskHistoryType,
 )
+from .task_types import DeleteTaskInput, DeleteTaskResult

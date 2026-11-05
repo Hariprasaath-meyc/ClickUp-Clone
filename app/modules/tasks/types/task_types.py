@@ -79,7 +79,10 @@ class UnassignTaskInput:
     user_ids: list[uuid.UUID]
 
 
-
+@strawberry.input
+class DeleteTaskInput:
+    workspace_id: uuid.UUID
+    task_id: uuid.UUID
     
 
 
@@ -95,3 +98,8 @@ class TaskUnassignmentResult:
     success: bool
     message: str
     removed_count: int
+
+@strawberry.type
+class DeleteTaskResult:
+    success: bool
+    message: str
