@@ -337,3 +337,47 @@ class TaskService:
             workspace_id=workspace_id,
             parent_task_id=parent_task_id,
         )
+
+    @staticmethod
+    async def restore_task(
+        db: AsyncSession,
+        *,
+        task_id: UUID,
+        workspace_id: UUID,
+        user_id: UUID,
+    ):
+        await AuthorizationService.require_permission(
+            db=db,
+            user_id=user_id,
+            workspace_id=workspace_id,
+            permission_key=Permission.TASKS_UPDATE.value,
+        )
+
+        # Retrieve the task, including soft-deleted tasks.
+        task = await TaskRepository.get_by_id_including_deleted(
+            db=db,
+            task_id=task_id,
+            workspace_id=workspace_id,
+        )
+
+        if task is None:
+            raise ValueError("Task not found.")
+
+        if task.deleted_at is None:
+            raise ValueError("Task is already active.")
+
+        await TaskRepository.restore(
+            db=db,
+            task=task,
+        )
+
+        await TaskHistoryService.record_activity(
+            db=db,
+            workspace_id=workspace_id,
+            task_id=task.id,
+            actor_id=user_id,
+            action=TaskHistoryAction.TASK_RESTORED,
+            changes={"deleted_at": None},
+        )
+
+        return task

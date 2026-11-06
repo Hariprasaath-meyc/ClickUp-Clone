@@ -96,3 +96,31 @@ class TaskRepository:
         )
 
         return result.scalars().all()
+
+
+    @staticmethod
+    async def restore(
+        db: AsyncSession,
+        task,
+    ):
+        task.deleted_at = None
+
+        await db.flush()
+
+        return task
+
+    @staticmethod
+    async def get_by_id_including_deleted(
+        db: AsyncSession,
+        *,
+        task_id: UUID,
+        workspace_id: UUID,
+    ):
+        result = await db.execute(
+            select(Task).where(
+                Task.id == task_id,
+                Task.workspace_id == workspace_id,
+            )
+        )
+
+        return result.scalar_one_or_none()

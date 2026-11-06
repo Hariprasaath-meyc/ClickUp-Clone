@@ -1,7 +1,7 @@
 from datetime import datetime
 
 import strawberry
-
+from uuid import UUID
 
 @strawberry.type
 class WorkspaceType:
@@ -11,6 +11,7 @@ class WorkspaceType:
     created_by: strawberry.ID
     created_at: datetime
     updated_at: datetime
+    deleted_at: datetime | None
 
 
 @strawberry.input
@@ -33,11 +34,9 @@ class CreateWorkspaceInput:
 
 @strawberry.type
 class WorkspaceResult:
-    id: strawberry.ID
-    name: str
-    slug: str
-    created_by: strawberry.ID
-    created_at: datetime
+    success: bool
+    message: str
+    workspace: WorkspaceType | None
 
 @strawberry.type
 class WorkspaceMemberType:
@@ -99,3 +98,7 @@ class DeclineInvitationInput:
 class ResendInvitationInput:
     workspace_id: strawberry.ID
     invitation_id: strawberry.ID
+
+@strawberry.input
+class DeleteWorkspaceInput:
+    workspace_id: UUID

@@ -5,7 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.workspaces.models.models import Workspace, WorkspaceMember
 
-
+from datetime import datetime, timezone
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class WorkspaceRepository:
@@ -84,3 +85,16 @@ class WorkspaceRepository:
         )
 
         return result.scalar_one_or_none()
+
+
+
+    @staticmethod
+    async def soft_delete(db: AsyncSession, workspace):
+        now = datetime.now(timezone.utc)
+
+        workspace.deleted_at = now
+        workspace.updated_at = now
+
+        await db.flush()
+
+        return workspace

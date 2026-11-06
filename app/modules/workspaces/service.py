@@ -14,6 +14,7 @@ from app.modules.workspaces.models import (
     Workspace,
     WorkspaceMember,
 )
+from app.modules.workspaces.repository import WorkspaceRepository
 
 
 
@@ -132,3 +133,53 @@ async def create_workspace(
 
         return workspace
 
+async def delete_workspace(
+    db: AsyncSession,
+    *,
+    workspace_id: UUID,
+    user_id: UUID,
+) -> Workspace:
+
+   # 1. Retrieve the workspace, including deleted workspaces
+    result = await db.execute(
+        select(Workspace).where(
+            Workspace.id == workspace_id,
+        )
+    )
+
+    workspace = result.scalar_one_or_none()
+
+    if workspace is None:
+        raise ValueError("Workspace does not exist.")
+
+    # 2. Check whether it was already deleted
+    if workspace.deleted_at is not None:
+        raise ValueError("This workspace has already been deleted.")
+
+    # 3. Retrieve the user's role in this workspace
+    result = await db.execute(
+        select(Role.role_key)
+        .join(
+            WorkspaceMember,
+            WorkspaceMember.role_id == Role.id,
+        )
+        .where(
+            WorkspaceMember.workspace_id == workspace_id,
+            WorkspaceMember.user_id == user_id,
+        )
+    )
+
+    role_key = result.scalar_one_or_none()
+
+    if role_key is None:
+        raise ValueError("You are not a member of this workspace.")
+
+    # 3. Verify workspace ownership
+    if role_key != "OWNER":
+        raise ValueError("Only the workspace owner can delete the workspace.")
+
+    # 4. Perform soft deletion
+    return await WorkspaceRepository.soft_delete(
+        db=db,
+        workspace=workspace,
+    )

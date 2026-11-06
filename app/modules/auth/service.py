@@ -17,9 +17,6 @@ from app.modules.auth.cognito import (
     refresh_cognito_session,
 )
 from app.modules.users.repository import UserRepository
-from app.modules.registered_users.repositories import (
-    RegisteredUserRepository,
-)
 
 
 

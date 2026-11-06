@@ -2,12 +2,13 @@
 import strawberry
 
 from uuid import UUID
-
+import logging
 from graphql import GraphQLError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
-
+from strawberry.types import Info
+from app import db
 from app.modules.auth.authorization import require_authenticated_user
 from app.modules.users.repository import UserRepository
 
@@ -17,16 +18,17 @@ from app.modules.workspaces.repository import WorkspaceRepository
 from app.modules.workspaces.security.authorization_service import (
     AuthorizationService,
 )
-from app.modules.workspaces.service import create_workspace
+from app.modules.workspaces.service import create_workspace, delete_workspace
 
 from app.modules.workspaces.types import (
     CreateWorkspaceInput,
+    DeleteWorkspaceInput,
     UpdateWorkspaceInput,
     WorkspaceResult,
     WorkspaceType,
 )
 
-
+logger = logging.getLogger(__name__)
 @strawberry.type
 class WorkspaceMutation:
 
@@ -75,12 +77,18 @@ class WorkspaceMutation:
             await db.commit()
 
             return WorkspaceResult(
-                id=strawberry.ID(str(workspace.id)),
-                name=workspace.name,
-                slug=workspace.slug,
-                created_by=strawberry.ID(str(workspace.created_by)),
-                created_at=workspace.created_at,
-            )
+        success=True,
+        message="Workspace created successfully.",
+        workspace=WorkspaceType(
+            id=strawberry.ID(str(workspace.id)),
+            name=workspace.name,
+            slug=workspace.slug,
+            created_by=strawberry.ID(str(workspace.created_by)),
+            created_at=workspace.created_at,
+            updated_at=workspace.updated_at,
+            deleted_at=workspace.deleted_at,
+        ),
+    )
 
         except IntegrityError as exc:
             await db.rollback()
@@ -208,3 +216,71 @@ class WorkspaceMutation:
         except Exception:
             await db.rollback()
             raise
+        
+    @strawberry.mutation
+    async def delete_workspace(
+        self,
+        info: Info,
+        input: DeleteWorkspaceInput,
+    ) -> WorkspaceResult:
+
+        db: AsyncSession = info.context["db"]
+
+        try:
+            # Authenticate the user
+            claims = require_authenticated_user(info)
+
+            cognito_sub = claims["sub"]
+
+            # Resolve the local PostgreSQL user
+            user = await UserRepository.get_by_cognito_sub(
+                session=db,
+                cognito_sub=cognito_sub,
+            )
+
+            if user is None:
+                raise ValueError("User not found.")
+
+            # Call workspace service
+            workspace = await delete_workspace(
+                    db=db,
+                    workspace_id=input.workspace_id,
+                    user_id=user.id,
+                )
+
+    # Construct the response while ORM attributes are accessible
+            workspace_type = WorkspaceType(
+                id=workspace.id,
+                name=workspace.name,
+                slug=workspace.slug,
+                created_by=workspace.created_by,
+                created_at=workspace.created_at,
+                updated_at=workspace.updated_at,
+                deleted_at=workspace.deleted_at,
+            )
+
+            # Commit after constructing the response
+            await db.commit()
+
+            return WorkspaceResult(
+                success=True,
+                message="Workspace deleted successfully.",
+                workspace=workspace_type,
+    )
+
+        except GraphQLError:
+            await db.rollback()
+            raise
+
+        except ValueError as exc:
+            await db.rollback()
+            return WorkspaceResult(
+                success=False,
+                message=str(exc),
+                workspace=None,
+            )
+
+        except Exception as exc:
+            await db.rollback()
+            logger.exception("Workspace deletion failed.")
+            raise GraphQLError("Unable to delete workspace.") from exc

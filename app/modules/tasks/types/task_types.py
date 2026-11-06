@@ -106,3 +106,13 @@ class TaskUnassignmentResult:
 class DeleteTaskResult:
     success: bool
     message: str
+
+@strawberry.input
+class RestoreTaskInput:
+    workspace_id: UUID
+    task_id: UUID
+
+@strawberry.input
+class RestoreTaskInput:
+    workspace_id: UUID
+    task_id: UUID

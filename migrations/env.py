@@ -26,7 +26,7 @@ from app.modules.tasks.models import (
     TaskHistory,
 )
 from app.modules.tags.models import Tag, TaskTag
-from app.modules.registered_users.models import RegisteredUser                      
+                 
 # Importing Base registers the User model and its table metadata.
 target_metadata = Base.metadata
 # Alembic configuration

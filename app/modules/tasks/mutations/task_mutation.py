@@ -5,7 +5,7 @@ from graphql import GraphQLError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.authorization import require_authenticated_user
-from app.modules.tasks.types.task_types import DeleteTaskInput, DeleteTaskResult
+from app.modules.tasks.types.task_types import DeleteTaskInput, DeleteTaskResult, RestoreTaskInput
 from app.modules.users.repository import UserRepository
 from app.modules.tasks.services import TaskService
 from app.modules.tasks.types import (
@@ -375,4 +375,87 @@ class TaskMutation:
             await db.rollback()
             raise GraphQLError(
                 "Unable to delete task."
+            ) from exc
+
+    @strawberry.mutation
+    async def restore_task(
+        self,
+        info: strawberry.Info,
+        input: RestoreTaskInput,
+    ) -> TaskResult:
+
+        db: AsyncSession = info.context["db"]
+
+        try:
+            # 1. Authenticate requester
+            claims = require_authenticated_user(info)
+
+            # 2. Resolve local user
+            user = await UserRepository.get_by_cognito_sub(
+                db,
+                claims["sub"],
+            )
+
+            if user is None:
+                raise GraphQLError("User account not found.")
+
+            # 3. Restore task
+            task = await TaskService.restore_task(
+                db=db,
+                task_id=input.task_id,
+                workspace_id=input.workspace_id,
+                user_id=user.id,
+            )
+
+            # 4. Retrieve task assignments
+            assignments = await TaskAssigneeRepository.get_task_assignees(
+                db=db,
+                workspace_id=task.workspace_id,
+                task_id=task.id,
+            )
+
+            # 5. Commit restoration and history
+            await db.commit()
+
+            return TaskResult(
+                success=True,
+                message="Task restored successfully.",
+                task=TaskType(
+                    id=task.id,
+                    workspace_id=task.workspace_id,
+                    parent_task_id=task.parent_task_id,
+                    title=task.title,
+                    description=task.description,
+                    status=task.status,
+                    priority=task.priority,
+                    created_by=task.created_by,
+                    due_date=task.due_date,
+                    created_at=task.created_at,
+                    updated_at=task.updated_at,
+                    deleted_at=task.deleted_at,
+                    assignees=[
+                        TaskAssigneeType(
+                            workspace_id=item.workspace_id,
+                            task_id=item.task_id,
+                            user_id=item.user_id,
+                            assigned_by=item.assigned_by,
+                            assigned_at=item.assigned_at,
+                        )
+                        for item in assignments
+                    ],
+                ),
+            )
+
+        except GraphQLError:
+            await db.rollback()
+            raise
+
+        except ValueError as exc:
+            await db.rollback()
+            raise GraphQLError(str(exc)) from exc
+
+        except Exception as exc:
+            await db.rollback()
+            raise GraphQLError(
+                "Unable to restore task."
             ) from exc

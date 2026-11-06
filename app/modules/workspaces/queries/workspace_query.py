@@ -55,6 +55,7 @@ class WorkspaceQuery:
                 created_by=strawberry.ID(str(workspace.created_by)),
                 created_at=workspace.created_at,
                 updated_at=workspace.updated_at,
+                deleted_at=workspace.deleted_at,
             )
             for workspace in workspaces
         ]
@@ -112,6 +113,7 @@ class WorkspaceQuery:
             created_by=strawberry.ID(str(workspace.created_by)),
             created_at=workspace.created_at,
             updated_at=workspace.updated_at,
+            deleted_at=workspace.deleted_at,
         )
 
     # Check whether a workspace slug is available
