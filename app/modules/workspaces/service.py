@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.authorization.permission_seeder import seed_permissions
+
 from app.modules.authorization.role_policies import ROLE_POLICIES
 from app.modules.users.models import User
 from app.modules.workspaces.models import (
@@ -71,8 +71,8 @@ async def create_workspace(
         db.add_all(roles.values())
         await db.flush()
 
-        # 4. Ensure that all predefined permissions exist.
-        await seed_permissions(db)
+      
+    
 
         # 5. Retrieve the permission records from PostgreSQL.
         permission_keys = {

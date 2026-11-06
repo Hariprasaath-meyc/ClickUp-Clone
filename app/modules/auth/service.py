@@ -17,6 +17,12 @@ from app.modules.auth.cognito import (
     refresh_cognito_session,
 )
 from app.modules.users.repository import UserRepository
+from app.modules.registered_users.repositories import (
+    RegisteredUserRepository,
+)
+
+
+
 logger = logging.getLogger(__name__)
 
 cognito = boto3.client(
@@ -85,10 +91,7 @@ class AuthService:
             if code in messages:
                 raise ValueError(messages[code]) from None
 
-            raise RuntimeError(
-                "Cognito signup failed."
-            ) from exc
-
+            raise RuntimeError("Cognito signup failed.") from exc
     
     @staticmethod
     async def confirm_signup(

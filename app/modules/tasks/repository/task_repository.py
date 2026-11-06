@@ -4,7 +4,7 @@ import uuid
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from uuid import UUID
 from app.modules.tasks.models import Task
 
 
@@ -79,3 +79,20 @@ class TaskRepository:
         await db.flush()
 
         return task
+
+    @staticmethod
+    async def get_subtasks(
+        db: AsyncSession,
+        *,
+        workspace_id: UUID,
+        parent_task_id: UUID,
+    ):
+        result = await db.execute(
+            select(Task).where(
+                Task.workspace_id == workspace_id,
+                Task.parent_task_id == parent_task_id,
+                Task.deleted_at.is_(None),
+            )
+        )
+
+        return result.scalars().all()

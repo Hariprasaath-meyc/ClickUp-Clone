@@ -1,7 +1,7 @@
 
 import uuid
 from datetime import datetime
-
+from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.authorization.permissions import Permission
@@ -30,11 +30,11 @@ class TaskService:
 
         # 1. Check whether the user has permission to create tasks.
         await AuthorizationService.require_permission(
-            db,
-            user_id,
-            workspace_id,
-            Permission.TASKS_CREATE.value,
-        )
+        db=db,
+        user_id=user_id,
+        workspace_id=workspace_id,
+        permission_key=Permission.TASKS_CREATE.value,
+    )
 
         # 2. Validate the parent task if creating a subtask.
         if parent_task_id is not None:
@@ -304,3 +304,36 @@ class TaskService:
         )
 
         return True
+
+    @staticmethod
+    async def get_subtasks(
+        db: AsyncSession,
+        *,
+        workspace_id: UUID,
+        parent_task_id: UUID,
+        current_user_id: UUID,
+    ):
+        # Check permission
+        await AuthorizationService.require_permission(
+            db=db,
+            user_id=current_user_id,
+            workspace_id=workspace_id,
+            permission_key=Permission.TASKS_READ,
+        )
+
+        # Verify that the parent task exists in this workspace
+        parent_task = await TaskRepository.get_by_id(
+            db,
+            workspace_id=workspace_id,
+            task_id=parent_task_id,
+        )
+
+        if parent_task is None:
+            raise ValueError("Parent task not found.")
+
+        # Retrieve subtasks
+        return await TaskRepository.get_subtasks(
+            db,
+            workspace_id=workspace_id,
+            parent_task_id=parent_task_id,
+        )

@@ -33,7 +33,8 @@ class Query(
     MembershipQuery,
     TaskQuery,
     TaskHistoryQuery,
-    TagQuery
+    TagQuery,
+
     
 
 ):

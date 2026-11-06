@@ -1,21 +1,17 @@
 from app.modules.tasks.types.task_types import (
     CreateTaskInput,
     UpdateTaskInput,
-    TaskType,
-    TaskResult,
-)
-from app.modules.tasks.types.task_types import (
-    CreateTaskInput,
-    UpdateTaskInput,
-    TaskType,
-    TaskResult,
     AssignTaskInput,
     UnassignTaskInput,
+    DeleteTaskInput,
+    TaskType,
     TaskAssigneeType,
+    TaskResult,
     TaskAssignmentResult,
     TaskUnassignmentResult,
+    DeleteTaskResult,
 )
-from .task_types import TaskType
+
 from app.modules.tasks.types.task_comment_types import (
     CreateTaskCommentInput,
     UpdateTaskCommentInput,
@@ -28,4 +24,3 @@ from app.modules.tasks.types.task_comment_types import (
 from app.modules.tasks.types.task_history_types import (
     TaskHistoryType,
 )
-from .task_types import DeleteTaskInput, DeleteTaskResult
