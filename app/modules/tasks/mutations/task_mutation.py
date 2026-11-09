@@ -1,32 +1,31 @@
-
 import strawberry
-
 from graphql import GraphQLError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.authorization import require_authenticated_user
-from app.modules.tasks.types.task_types import DeleteTaskInput, DeleteTaskResult, RestoreTaskInput
-from app.modules.users.repository import UserRepository
-from app.modules.tasks.services import TaskService
-from app.modules.tasks.types import (
-    CreateTaskInput,
-    TaskResult,
-    TaskType,
-)
-from app.modules.tasks.types import UpdateTaskInput
-from app.modules.tasks.services import TaskAssigneeService
 from app.modules.tasks.repository import TaskAssigneeRepository
+from app.modules.tasks.services import TaskAssigneeService, TaskService
 from app.modules.tasks.types import (
     AssignTaskInput,
-    UnassignTaskInput,
+    CreateTaskInput,
     TaskAssigneeType,
     TaskAssignmentResult,
+    TaskResult,
+    TaskType,
     TaskUnassignmentResult,
+    UnassignTaskInput,
+    UpdateTaskInput,
 )
+from app.modules.tasks.types.task_types import (
+    DeleteTaskInput,
+    DeleteTaskResult,
+    RestoreTaskInput,
+)
+from app.modules.users.repository import UserRepository
+
 
 @strawberry.type
 class TaskMutation:
-
     @strawberry.mutation
     async def create_task(
         self,
@@ -107,9 +106,7 @@ class TaskMutation:
 
         except Exception as exc:
             await db.rollback()
-            raise GraphQLError(
-                "Unable to create task."
-            ) from exc
+            raise GraphQLError("Unable to create task.") from exc
 
     @strawberry.mutation
     async def update_task(
@@ -204,9 +201,7 @@ class TaskMutation:
 
         except Exception as exc:
             await db.rollback()
-            raise GraphQLError(
-                "Unable to update task."
-            ) from exc
+            raise GraphQLError("Unable to update task.") from exc
 
     @strawberry.mutation
     async def assign_task(
@@ -236,7 +231,7 @@ class TaskMutation:
                 workspace_id=input.workspace_id,
                 task_id=input.task_id,
                 user_ids=input.user_ids,
-                assigned_by=user.id,
+                user_id=user.id,
             )
 
             # 4. Commit transaction
@@ -267,9 +262,7 @@ class TaskMutation:
 
         except Exception as exc:
             await db.rollback()
-            raise GraphQLError(
-                "Unable to assign task."
-            ) from exc
+            raise GraphQLError("Unable to assign task.") from exc
 
     @strawberry.mutation
     async def unassign_task(
@@ -321,10 +314,8 @@ class TaskMutation:
 
         except Exception as exc:
             await db.rollback()
-            raise GraphQLError(
-                "Unable to unassign task."
-            ) from exc
-        
+            raise GraphQLError("Unable to unassign task.") from exc
+
     @strawberry.mutation
     async def delete_task(
         self,
@@ -373,9 +364,7 @@ class TaskMutation:
 
         except Exception as exc:
             await db.rollback()
-            raise GraphQLError(
-                "Unable to delete task."
-            ) from exc
+            raise GraphQLError("Unable to delete task.") from exc
 
     @strawberry.mutation
     async def restore_task(
@@ -456,6 +445,4 @@ class TaskMutation:
 
         except Exception as exc:
             await db.rollback()
-            raise GraphQLError(
-                "Unable to restore task."
-            ) from exc
+            raise GraphQLError("Unable to restore task.") from exc

@@ -1,3 +1,4 @@
+from .invitation_models import WorkspaceInvitation
 from .models import (
     Permission,
     Role,
@@ -5,4 +6,12 @@ from .models import (
     Workspace,
     WorkspaceMember,
 )
-from .invitation_models import WorkspaceInvitation
+
+__all__ = [
+    "Permission",
+    "Role",
+    "RolePermission",
+    "Workspace",
+    "WorkspaceInvitation",
+    "WorkspaceMember",
+]

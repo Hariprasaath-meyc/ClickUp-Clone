@@ -6,7 +6,6 @@ from app.modules.users.repository import UserRepository
 
 
 class UserService:
-
     @staticmethod
     async def create_from_cognito(
         session: AsyncSession,
@@ -27,17 +26,14 @@ class UserService:
                 return user
 
             # 2. Check whether email already exists
-            existing_email_user = (
-                await UserRepository.get_by_email(
-                    session,
-                    email,
-                )
+            existing_email_user = await UserRepository.get_by_email(
+                session,
+                email,
             )
 
             if existing_email_user is not None:
                 raise ValueError(
-                    "This email is already associated with "
-                    "another user account."
+                    "This email is already associated with another user account."
                 )
 
             # 3. Create user and profile

@@ -1,17 +1,14 @@
-
-import strawberry
-
 from uuid import UUID
 
+import strawberry
 from graphql import GraphQLError
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.authorization import require_authenticated_user
 from app.modules.auth.service import AuthService
 from app.modules.authorization.permissions import Permission
 from app.modules.users.repository import UserRepository
-
 from app.modules.workspaces.security.authorization_service import (
     AuthorizationService,
 )
@@ -31,7 +28,6 @@ from app.modules.workspaces.types import (
 
 @strawberry.type
 class InvitationMutation:
-
     # Create invitation
     @strawberry.mutation
     async def invite_member(
@@ -72,14 +68,12 @@ class InvitationMutation:
             raise GraphQLError(str(exc)) from exc
 
         try:
-            invitation, raw_token = (
-                await InvitationService.create_invitation(
-                    db=db,
-                    workspace_id=workspace_id,
-                    email=email,
-                    role_key=input.role_key,
-                    invited_by=user.id,
-                )
+            invitation, raw_token = await InvitationService.create_invitation(
+                db=db,
+                workspace_id=workspace_id,
+                email=email,
+                role_key=input.role_key,
+                invited_by=user.id,
             )
 
             await db.commit()
@@ -185,9 +179,7 @@ class InvitationMutation:
             workspace_id = UUID(str(input.workspace_id))
             invitation_id = UUID(str(input.invitation_id))
         except ValueError as exc:
-            raise GraphQLError(
-                "Invalid workspace or invitation ID."
-            ) from exc
+            raise GraphQLError("Invalid workspace or invitation ID.") from exc
 
         try:
             await AuthorizationService.require_permission(
@@ -303,9 +295,7 @@ class InvitationMutation:
                 workspace_id = UUID(str(input.workspace_id))
                 invitation_id = UUID(str(input.invitation_id))
             except ValueError as exc:
-                raise ValueError(
-                    "Invalid workspace or invitation ID."
-                ) from exc
+                raise ValueError("Invalid workspace or invitation ID.") from exc
 
             await AuthorizationService.require_permission(
                 db=db,
@@ -314,13 +304,11 @@ class InvitationMutation:
                 permission_key=Permission.MEMBERS_INVITE,
             )
 
-            invitation, raw_token = (
-                await InvitationService.resend_invitation(
-                    db=db,
-                    invitation_id=invitation_id,
-                    workspace_id=workspace_id,
-                    invited_by=user.id,
-                )
+            invitation, raw_token = await InvitationService.resend_invitation(
+                db=db,
+                invitation_id=invitation_id,
+                workspace_id=workspace_id,
+                invited_by=user.id,
             )
 
             await db.commit()

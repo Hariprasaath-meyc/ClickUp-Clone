@@ -7,7 +7,6 @@ from app.modules.tags.models import Tag
 
 
 class TagRepository:
-
     @staticmethod
     async def get_by_name(
         db: AsyncSession,

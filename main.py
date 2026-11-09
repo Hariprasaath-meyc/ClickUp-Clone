@@ -1,19 +1,18 @@
-
 import logging
 from contextlib import asynccontextmanager
 
 import jwt
 from fastapi import Depends, FastAPI, Request
-from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.middleware.cors import CORSMiddleware
-from app.core.logging.config import setup_logging
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.logging.logging_setup import setup_logging
 from app.core.middleware.request_logging import RequestLoggingMiddleware
 from app.db.session import engine, get_db
 from app.graphql.error_handler import CentralizedGraphQLRouter
 from app.graphql.schema import schema
 from app.modules.auth.token_service import verify_access_token
 from app.modules.users.repository import UserRepository
-
 
 # Configure logging before application initialization.
 setup_logging()
@@ -34,11 +33,7 @@ async def get_authenticated_claims(
 
     scheme, separator, token = authorization.partition(" ")
 
-    if (
-        scheme.lower() != "bearer"
-        or not separator
-        or not token
-    ):
+    if scheme.lower() != "bearer" or not separator or not token:
         return None
 
     try:
@@ -76,11 +71,7 @@ async def get_context(
     if authorization:
         scheme, separator, token = authorization.partition(" ")
 
-        if (
-            scheme.lower() == "bearer"
-            and separator
-            and token
-        ):
+        if scheme.lower() == "bearer" and separator and token:
             access_token = token
 
     claims = await get_authenticated_claims(
@@ -106,15 +97,10 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173"
-    ],
+    allow_origins=["http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["POST", "OPTIONS"],
-    allow_headers=[
-        "Content-Type",
-        "Authorization"
-    ],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 # Register request logging middleware.

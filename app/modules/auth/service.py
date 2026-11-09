@@ -1,24 +1,19 @@
-
 import asyncio
 import base64
 import hashlib
 import hmac
-from datetime import datetime, timezone
-import uuid
-from sqlalchemy.ext.asyncio import AsyncSession
+import logging
+from datetime import UTC, datetime, timedelta
+
 import boto3
 from botocore.exceptions import ClientError
-import logging
-from datetime import datetime, timezone, timedelta
-from app.modules.users.models import User
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.config import settings
 from app.modules.auth.cognito import (
-    get_cognito_client,
     refresh_cognito_session,
 )
-from app.modules.users.repository import UserRepository
-
-
+from app.modules.users.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +21,7 @@ cognito = boto3.client(
     "cognito-idp",
     region_name=settings.aws_region,
 )
+
 
 def calculate_secret_hash(username: str) -> str:
     message = username + settings.cognito_client_id
@@ -38,9 +34,9 @@ def calculate_secret_hash(username: str) -> str:
 
     return base64.b64encode(digest).decode("utf-8")
 
-#Signup, confirm_signup, and resend_confirmation_code 
-class AuthService:
 
+# Signup, confirm_signup, and resend_confirmation_code
+class AuthService:
     @staticmethod
     async def signup(
         display_name: str,
@@ -73,23 +69,18 @@ class AuthService:
             code = error.get("Code")
 
             messages = {
-                "UsernameExistsException":
-                    "An account with this email already exists.",
-                "InvalidPasswordException":
-                    "The password does not meet Cognito's requirements.",
-                "InvalidParameterException":
-                    "One or more signup inputs are invalid.",
-                "LimitExceededException":
-                    "The signup limit has been reached.",
-                "TooManyRequestsException":
-                    "Too many requests. Please try again later.",
+                "UsernameExistsException": "An account with this email already exists.",
+                "InvalidPasswordException": "The password does not meet Cognito's requirements.",
+                "InvalidParameterException": "One or more signup inputs are invalid.",
+                "LimitExceededException": "The signup limit has been reached.",
+                "TooManyRequestsException": "Too many requests. Please try again later.",
             }
 
             if code in messages:
                 raise ValueError(messages[code]) from None
 
             raise RuntimeError("Cognito signup failed.") from exc
-    
+
     @staticmethod
     async def confirm_signup(
         email: str,
@@ -114,26 +105,18 @@ class AuthService:
             code = error.get("Code")
 
             messages = {
-                "CodeMismatchException":
-                    "The confirmation code is incorrect.",
-                "ExpiredCodeException":
-                    "The confirmation code has expired.",
-                "UserNotFoundException":
-                    "The account was not found.",
-                "NotAuthorizedException":
-                    "The account may already be confirmed or the request is not authorized.",
-                "TooManyFailedAttemptsException":
-                    "Too many incorrect attempts. Try again later.",
+                "CodeMismatchException": "The confirmation code is incorrect.",
+                "ExpiredCodeException": "The confirmation code has expired.",
+                "UserNotFoundException": "The account was not found.",
+                "NotAuthorizedException": "The account may already be confirmed or the request is not authorized.",
+                "TooManyFailedAttemptsException": "Too many incorrect attempts. Try again later.",
             }
 
             if code in messages:
                 raise ValueError(messages[code]) from exc
 
-            raise RuntimeError(
-                "Cognito confirmation failed."
-            ) from exc
-        
- 
+            raise RuntimeError("Cognito confirmation failed.") from exc
+
     @staticmethod
     async def resend_confirmation_code(email: str) -> dict:
 
@@ -170,12 +153,10 @@ class AuthService:
             if error_code in messages:
                 raise ValueError(messages[error_code]) from None
 
-            raise RuntimeError(
-                "Could not resend the confirmation code."
-            ) from exc
+            raise RuntimeError("Could not resend the confirmation code.") from exc
 
-#User login method
-    
+    # User login method
+
     @staticmethod
     async def login(email: str, password: str) -> dict:
         email = email.strip()
@@ -193,16 +174,12 @@ class AuthService:
             )
 
             if result.get("ChallengeName"):
-                raise ValueError(
-                    "Additional authentication is required."
-                )
+                raise ValueError("Additional authentication is required.")
 
             tokens = result.get("AuthenticationResult")
 
             if not tokens or not tokens.get("AccessToken"):
-                raise RuntimeError(
-                    "Cognito did not return an access token."
-                )
+                raise RuntimeError("Cognito did not return an access token.")
 
             return {
                 "access_token": tokens["AccessToken"],
@@ -223,9 +200,7 @@ class AuthService:
                 "NotAuthorizedException",
                 "UserNotFoundException",
             }:
-                raise ValueError(
-                    "Invalid email or password."
-                ) from None
+                raise ValueError("Invalid email or password.") from None
 
             if error_code == "UserNotConfirmedException":
                 raise ValueError(
@@ -233,9 +208,7 @@ class AuthService:
                 ) from exc
 
             if error_code == "PasswordResetRequiredException":
-                raise ValueError(
-                    "A password reset is required."
-                ) from exc
+                raise ValueError("A password reset is required.") from exc
 
             if error_code in {
                 "TooManyRequestsException",
@@ -245,10 +218,8 @@ class AuthService:
                     "Too many authentication attempts. Try again later."
                 ) from exc
 
-            raise RuntimeError(
-                "Cognito authentication failed."
-            ) from exc
-        
+            raise RuntimeError("Cognito authentication failed.") from exc
+
     @staticmethod
     async def refresh_session(
         refresh_token: str,
@@ -261,9 +232,7 @@ class AuthService:
             )
 
             if not result:
-                raise RuntimeError(
-                    "Cognito returned an empty authentication result."
-                )
+                raise RuntimeError("Cognito returned an empty authentication result.")
 
             return {
                 "access_token": result["AccessToken"],
@@ -287,7 +256,7 @@ class AuthService:
             raise RuntimeError(
                 "Unable to refresh your session. Please try again later."
             ) from exc
-        
+
     @staticmethod
     async def logout(
         db: AsyncSession,
@@ -301,10 +270,9 @@ class AuthService:
                 AccessToken=access_token,
             )
 
-            user.tokens_valid_after = (
-                datetime.now(timezone.utc).replace(microsecond=0)
-                + timedelta(seconds=1)
-            )
+            user.tokens_valid_after = datetime.now(UTC).replace(
+                microsecond=0
+            ) + timedelta(seconds=1)
 
             await db.commit()
 
@@ -322,17 +290,13 @@ class AuthService:
                 "NotAuthorizedException",
                 "InvalidParameterException",
             }:
-                raise ValueError(
-                    "The access token is invalid or expired."
-                ) from None
+                raise ValueError("The access token is invalid or expired.") from None
 
             if error_code in {
                 "TooManyRequestsException",
                 "LimitExceededException",
             }:
-                raise ValueError(
-                    "Too many logout attempts. Try again later."
-                ) from None
+                raise ValueError("Too many logout attempts. Try again later.") from None
 
             raise RuntimeError("Cognito logout failed.") from exc
 
@@ -340,7 +304,6 @@ class AuthService:
             await db.rollback()
             raise
 
-        
     @staticmethod
     async def get_authenticated_identity(
         access_token: str,
@@ -352,14 +315,11 @@ class AuthService:
             )
 
             attributes = {
-                item["Name"]: item["Value"]
-                for item in result.get("UserAttributes", [])
+                item["Name"]: item["Value"] for item in result.get("UserAttributes", [])
             }
 
             if attributes.get("email_verified") != "true":
-                raise ValueError(
-                    "Please verify your email before continuing."
-                )
+                raise ValueError("Please verify your email before continuing.")
 
             return {
                 "cognito_sub": attributes["sub"],
@@ -378,6 +338,4 @@ class AuthService:
                     "Your authentication session is invalid or expired."
                 ) from exc
 
-            raise RuntimeError(
-                "Unable to verify the Cognito identity."
-            ) from exc
+            raise RuntimeError("Unable to verify the Cognito identity.") from exc

@@ -5,11 +5,8 @@ from jwt import PyJWKClient
 
 from app.core.config import settings
 
-
 if not settings.cognito_user_pool_id:
-    raise RuntimeError(
-        "COGNITO_USER_POOL_ID is not configured."
-    )
+    raise RuntimeError("COGNITO_USER_POOL_ID is not configured.")
 
 ISSUER = (
     f"https://cognito-idp.{settings.aws_region}.amazonaws.com/"
@@ -36,14 +33,10 @@ def _verify_access_token(token: str) -> dict:
     )
 
     if claims.get("token_use") != "access":
-        raise jwt.InvalidTokenError(
-            "An access token is required."
-        )
+        raise jwt.InvalidTokenError("An access token is required.")
 
     if claims.get("client_id") != settings.cognito_client_id:
-        raise jwt.InvalidTokenError(
-            "Token was issued to a different app client."
-        )
+        raise jwt.InvalidTokenError("Token was issued to a different app client.")
 
     return claims
 

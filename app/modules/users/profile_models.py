@@ -1,22 +1,22 @@
-from typing import TYPE_CHECKING
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     DateTime,
     ForeignKey,
     String,
     Text,
-    Uuid,
     UniqueConstraint,
+    Uuid,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+
 if TYPE_CHECKING:
     from app.modules.users.models import User
-
 
 
 class UserProfile(Base):
@@ -47,15 +47,14 @@ class UserProfile(Base):
     )
 
     bio: Mapped[str | None] = mapped_column(
-    Text,
-    nullable=True,
-)
+        Text,
+        nullable=True,
+    )
 
     avatar_url: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )
-
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

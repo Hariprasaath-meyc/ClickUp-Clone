@@ -1,15 +1,14 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy import func, select
+
 from app.modules.users.models import User
 from app.modules.users.profile_models import UserProfile
 
 
 class UserRepository:
-
     @staticmethod
     async def create(
         session: AsyncSession,
@@ -31,18 +30,16 @@ class UserRepository:
 
     @staticmethod
     async def get_by_email(
-            session: AsyncSession,
-            email: str,
-        ) -> User | None:
-            normalized_email = email.strip().lower()
+        session: AsyncSession,
+        email: str,
+    ) -> User | None:
+        normalized_email = email.strip().lower()
 
-            result = await session.execute(
-                select(User).where(
-                    func.lower(User.email) == normalized_email
-                )
-            )
+        result = await session.execute(
+            select(User).where(func.lower(User.email) == normalized_email)
+        )
 
-            return result.scalar_one_or_none()
+        return result.scalar_one_or_none()
 
     @staticmethod
     async def get_by_cognito_sub(
@@ -62,8 +59,6 @@ class UserRepository:
         user_id: UUID,
     ) -> UserProfile | None:
         result = await session.execute(
-            select(UserProfile).where(
-                UserProfile.user_id == user_id
-            )
+            select(UserProfile).where(UserProfile.user_id == user_id)
         )
         return result.scalar_one_or_none()

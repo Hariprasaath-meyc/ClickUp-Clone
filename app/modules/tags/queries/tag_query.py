@@ -1,6 +1,6 @@
-import strawberry
 import uuid
 
+import strawberry
 from strawberry.types import Info
 
 from app.modules.auth.authorization import require_authenticated_user
@@ -9,10 +9,8 @@ from app.modules.tags.types import TagType
 from app.modules.users.repository import UserRepository
 
 
-
 @strawberry.type
 class TagQuery:
-
     @strawberry.field
     async def workspace_tags(
         self,

@@ -1,32 +1,15 @@
-
 import asyncio
-from logging.config import fileConfig
 import selectors
+from logging.config import fileConfig
+
 from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
-from app.modules.workspaces.models import WorkspaceInvitation
-from app.modules.tasks.models import Task
+
 from app.core.config import settings
-from app.modules.users.profile_models import UserProfile
 from app.db.base import Base
-from app.modules.users.models import User
-from app.modules.workspaces.models import (
-    Workspace,
-    WorkspaceMember,
-    Role,
-    Permission,
-    RolePermission,
-)
-from app.modules.tasks.models import (
-    Task,
-    TaskAssignee,
-    TaskComment,
-    TaskHistory,
-)
-from app.modules.tags.models import Tag, TaskTag
-                 
+
 # Importing Base registers the User model and its table metadata.
 target_metadata = Base.metadata
 # Alembic configuration
@@ -42,8 +25,6 @@ config.set_main_option(
     "sqlalchemy.url",
     settings.database_url.replace("%", "%%"),
 )
-
-
 
 
 def run_migrations_offline() -> None:
@@ -91,10 +72,8 @@ async def run_async_migrations() -> None:
 def run_migrations_online() -> None:
     """Run migrations against the configured database."""
     asyncio.run(
-    run_async_migrations(),
-    loop_factory=lambda: asyncio.SelectorEventLoop(
-        selectors.SelectSelector()
-    ),
+        run_async_migrations(),
+        loop_factory=lambda: asyncio.SelectorEventLoop(selectors.SelectSelector()),
     )
 
 

@@ -2,13 +2,13 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.modules.workspaces.models.invitation_models import WorkspaceInvitation
-from app.modules.workspaces.enums import InvitationStatus
 from sqlalchemy.orm import selectinload
 
-class InvitationRepository:
+from app.modules.workspaces.enums import InvitationStatus
+from app.modules.workspaces.models.invitation_models import WorkspaceInvitation
 
+
+class InvitationRepository:
     @staticmethod
     async def create(
         db: AsyncSession,
@@ -36,9 +36,7 @@ class InvitationRepository:
         invitation_id: UUID,
     ) -> WorkspaceInvitation | None:
         result = await db.execute(
-            select(WorkspaceInvitation).where(
-                WorkspaceInvitation.id == invitation_id
-            )
+            select(WorkspaceInvitation).where(WorkspaceInvitation.id == invitation_id)
         )
         return result.scalar_one_or_none()
 
@@ -77,8 +75,7 @@ class InvitationRepository:
         )
         return list(result.scalars().all())
 
-
-     #Get Pending Invitations
+    # Get Pending Invitations
     @staticmethod
     async def get_pending_invitations(
         db: AsyncSession,

@@ -1,27 +1,23 @@
-
-import strawberry
-
 from uuid import UUID
 
+import strawberry
 from graphql import GraphQLError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.authorization import require_authenticated_user
 from app.modules.users.repository import UserRepository
-
 from app.modules.workspaces.repository import WorkspaceRepository
 from app.modules.workspaces.security.authorization_service import (
     AuthorizationService,
 )
 from app.modules.workspaces.types import (
-    WorkspaceType,
     SlugAvailabilityType,
+    WorkspaceType,
 )
 
 
 @strawberry.type
 class WorkspaceQuery:
-
     # Get all workspaces belonging to the authenticated user
     @strawberry.field
     async def my_workspaces(
@@ -38,9 +34,7 @@ class WorkspaceQuery:
         )
 
         if user is None:
-            raise GraphQLError(
-                "User not found. Please log in again."
-            )
+            raise GraphQLError("User not found. Please log in again.")
 
         workspaces = await WorkspaceRepository.get_user_workspaces(
             db=db,
@@ -77,16 +71,12 @@ class WorkspaceQuery:
         )
 
         if user is None:
-            raise GraphQLError(
-                "User not found. Please log in again."
-            )
+            raise GraphQLError("User not found. Please log in again.")
 
         try:
             workspace_id = UUID(str(id))
         except ValueError as exc:
-            raise GraphQLError(
-                "Invalid workspace ID."
-            ) from exc
+            raise GraphQLError("Invalid workspace ID.") from exc
 
         workspace = await WorkspaceRepository.get_by_id(
             db=db,
@@ -133,16 +123,12 @@ class WorkspaceQuery:
         )
 
         if user is None:
-            raise GraphQLError(
-                "User not found. Please log in again."
-            )
+            raise GraphQLError("User not found. Please log in again.")
 
         normalized_slug = slug.strip().lower()
 
         if not normalized_slug or len(normalized_slug) > 100:
-            raise GraphQLError(
-                "Slug must be between 1 and 100 characters."
-            )
+            raise GraphQLError("Slug must be between 1 and 100 characters.")
 
         is_taken = await WorkspaceRepository.is_slug_taken(
             db=db,
@@ -171,16 +157,12 @@ class WorkspaceQuery:
         )
 
         if user is None:
-            raise GraphQLError(
-                "User not found. Please log in again."
-            )
+            raise GraphQLError("User not found. Please log in again.")
 
         normalized_slug = slug.strip().lower()
 
         if not normalized_slug or len(normalized_slug) > 100:
-            raise GraphQLError(
-                "Slug must be between 1 and 100 characters."
-            )
+            raise GraphQLError("Slug must be between 1 and 100 characters.")
 
         workspace = await WorkspaceRepository.get_by_slug(
             db=db,

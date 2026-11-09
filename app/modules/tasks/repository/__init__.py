@@ -1,4 +1,3 @@
-from app.modules.tasks.repository.task_repository import TaskRepository
 from app.modules.tasks.repository.task_assignee_repository import (
     TaskAssigneeRepository,
 )
@@ -8,3 +7,11 @@ from app.modules.tasks.repository.task_comment_repository import (
 from app.modules.tasks.repository.task_history_repository import (
     TaskHistoryRepository,
 )
+from app.modules.tasks.repository.task_repository import TaskRepository
+
+__all__ = [
+    "TaskAssigneeRepository",
+    "TaskCommentRepository",
+    "TaskHistoryRepository",
+    "TaskRepository",
+]

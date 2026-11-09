@@ -56,9 +56,9 @@ class Workspace(Base):
         onupdate=func.now(),
     )
     deleted_at: Mapped[datetime | None] = mapped_column(
-    DateTime(timezone=True),
-    nullable=True,
-)
+        DateTime(timezone=True),
+        nullable=True,
+    )
 
 
 class Role(Base):
@@ -194,7 +194,7 @@ class WorkspaceMember(Base):
 
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("workspaces.id",ondelete="CASCADE"),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
         primary_key=True,
         nullable=False,
     )

@@ -1,15 +1,12 @@
-
-import strawberry
-
 from uuid import UUID
 
+import strawberry
 from graphql import GraphQLError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.authorization import require_authenticated_user
 from app.modules.authorization.permissions import Permission
 from app.modules.users.repository import UserRepository
-
 from app.modules.workspaces.security.authorization_service import (
     AuthorizationService,
 )
@@ -19,7 +16,6 @@ from app.modules.workspaces.types import WorkspaceMemberType
 
 @strawberry.type
 class MembershipQuery:
-
     # Get all members belonging to a workspace
     @strawberry.field
     async def workspace_members(
@@ -94,9 +90,7 @@ class MembershipQuery:
             parsed_workspace_id = UUID(str(workspace_id))
             parsed_user_id = UUID(str(user_id))
         except ValueError as exc:
-            raise GraphQLError(
-                "Invalid workspace ID or user ID."
-            ) from exc
+            raise GraphQLError("Invalid workspace ID or user ID.") from exc
 
         try:
             await AuthorizationService.require_permission(

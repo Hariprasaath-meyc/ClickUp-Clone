@@ -1,13 +1,13 @@
 import uuid
 
-from sqlalchemy import select, delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+
 from app.modules.tags.models import TaskTag
 
 
 class TaskTagRepository:
-
     @staticmethod
     async def assign_tag(
         db: AsyncSession,
@@ -33,7 +33,7 @@ class TaskTagRepository:
     @staticmethod
     async def get_task_tags(
         db: AsyncSession,
-        workspace_id: uuid.UUID,    
+        workspace_id: uuid.UUID,
         task_id: uuid.UUID,
     ) -> list[TaskTag]:
 

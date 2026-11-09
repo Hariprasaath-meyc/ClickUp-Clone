@@ -1,6 +1,4 @@
-
 import strawberry
-
 from graphql import GraphQLError
 from pydantic import EmailStr, TypeAdapter, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,21 +8,19 @@ from app.modules.auth.authorization import require_authenticated_user
 from app.modules.auth.service import AuthService
 from app.modules.auth.types import (
     CodeDeliveryDetails,
-    SignupResult,
     LoginResult,
-    RefreshSessionResult,
     LogoutResult,
+    RefreshSessionResult,
+    SignupResult,
 )
 from app.modules.users.repository import UserRepository
 from app.modules.users.service import UserService
-
 
 email_validator = TypeAdapter(EmailStr)
 
 
 @strawberry.type
 class AuthMutation:
-
     # Signup Mutation
     @strawberry.mutation
     async def signup(
@@ -36,9 +32,7 @@ class AuthMutation:
     ) -> SignupResult:
 
         try:
-            validated_email = str(
-                email_validator.validate_python(email)
-            )
+            validated_email = str(email_validator.validate_python(email))
 
             result = await AuthService.signup(
                 email=validated_email,
@@ -56,9 +50,7 @@ class AuthMutation:
             )
 
         except ValidationError as exc:
-            raise GraphQLError(
-                "Invalid email address."
-            ) from exc
+            raise GraphQLError("Invalid email address.") from exc
 
         except ValueError as exc:
             raise GraphQLError(str(exc)) from exc
@@ -73,9 +65,7 @@ class AuthMutation:
     ) -> SignupResult:
 
         try:
-            validated_email = str(
-                email_validator.validate_python(email)
-            )
+            validated_email = str(email_validator.validate_python(email))
 
             result = await AuthService.confirm_signup(
                 email=validated_email,
@@ -88,9 +78,7 @@ class AuthMutation:
             )
 
         except ValidationError as exc:
-            raise GraphQLError(
-                "Invalid email address."
-            ) from exc
+            raise GraphQLError("Invalid email address.") from exc
 
         except ValueError as exc:
             raise GraphQLError(str(exc)) from exc
@@ -104,9 +92,7 @@ class AuthMutation:
     ) -> SignupResult:
 
         try:
-            validated_email = str(
-                email_validator.validate_python(email)
-            )
+            validated_email = str(email_validator.validate_python(email))
 
             result = await AuthService.resend_confirmation_code(
                 email=validated_email,
@@ -123,9 +109,7 @@ class AuthMutation:
             )
 
         except ValidationError as exc:
-            raise GraphQLError(
-                "Invalid email address."
-            ) from exc
+            raise GraphQLError("Invalid email address.") from exc
 
         except ValueError as exc:
             raise GraphQLError(str(exc)) from exc
@@ -142,9 +126,7 @@ class AuthMutation:
         db: AsyncSession = info.context["db"]
 
         try:
-            validated_email = str(
-                email_validator.validate_python(email)
-            )
+            validated_email = str(email_validator.validate_python(email))
 
             # Step 1: Authenticate with Cognito.
             result = await AuthService.login(
@@ -172,9 +154,7 @@ class AuthMutation:
 
         except ValidationError as exc:
             await db.rollback()
-            raise GraphQLError(
-                "Invalid email address."
-            ) from exc
+            raise GraphQLError("Invalid email address.") from exc
 
         except ValueError as exc:
             await db.rollback()

@@ -1,13 +1,12 @@
 import uuid
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.tasks.models import TaskComment
 
 
 class TaskCommentRepository:
-
     @staticmethod
     async def create(
         db: AsyncSession,

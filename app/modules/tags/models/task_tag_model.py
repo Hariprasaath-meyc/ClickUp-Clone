@@ -1,5 +1,4 @@
 import uuid
-
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -15,8 +14,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 if TYPE_CHECKING:
-    from app.modules.tasks.models.task_model import Task
     from app.modules.tags.models.tag_model import Tag
+    from app.modules.tasks.models.task_model import Task
 
 
 class TaskTag(Base):

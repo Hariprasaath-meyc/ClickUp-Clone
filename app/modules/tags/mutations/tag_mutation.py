@@ -1,26 +1,25 @@
+import logging
+
 import strawberry
-from strawberry.types import Info
 from graphql import GraphQLError
 from sqlalchemy.ext.asyncio import AsyncSession
+from strawberry.types import Info
 
 from app.modules.auth.authorization import require_authenticated_user
-from app.modules.tags.types.tag_types import RemoveTagsInput, RemoveTagsResult
-from app.modules.users.repository import UserRepository
-
 from app.modules.tags.services import TagService
-
 from app.modules.tags.types import (
     AssignTagsInput,
     TagResult,
     TagType,
 )
-import logging
+from app.modules.tags.types.tag_types import RemoveTagsInput, RemoveTagsResult
+from app.modules.users.repository import UserRepository
 
 logger = logging.getLogger(__name__)
 
+
 @strawberry.type
 class TagMutation:
-
     @strawberry.mutation
     async def assign_tags(
         self,
@@ -83,9 +82,7 @@ class TagMutation:
 
         except Exception as exc:
             await db.rollback()
-            raise GraphQLError(
-                "Unable to assign tags."
-            ) from exc
+            raise GraphQLError("Unable to assign tags.") from exc
 
     @strawberry.mutation
     async def remove_tags(
@@ -99,9 +96,7 @@ class TagMutation:
         try:
             claims = require_authenticated_user(info)
 
-            user = await UserRepository.get_by_cognito_sub(
-                db, claims["sub"]
-            )
+            user = await UserRepository.get_by_cognito_sub(db, claims["sub"])
 
             if user is None:
                 raise ValueError("User not found.")

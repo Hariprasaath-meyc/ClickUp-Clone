@@ -1,7 +1,8 @@
 from datetime import datetime
+from uuid import UUID
 
 import strawberry
-from uuid import UUID
+
 
 @strawberry.type
 class WorkspaceType:
@@ -26,6 +27,7 @@ class SlugAvailabilityType:
     slug: str
     available: bool
 
+
 @strawberry.input
 class CreateWorkspaceInput:
     name: str
@@ -38,6 +40,7 @@ class WorkspaceResult:
     message: str
     workspace: WorkspaceType | None
 
+
 @strawberry.type
 class WorkspaceMemberType:
     user_id: strawberry.ID
@@ -46,11 +49,13 @@ class WorkspaceMemberType:
     role: str
     joined_at: datetime
 
+
 @strawberry.input
 class CreateInvitationInput:
     workspace_id: strawberry.ID
     email: str
     role_key: str
+
 
 @strawberry.type
 class InvitationResult:
@@ -58,11 +63,12 @@ class InvitationResult:
     email: str
     status: str
     expires_at: datetime
-   
+
 
 @strawberry.input
 class AcceptInvitationInput:
     token: str
+
 
 @strawberry.type
 class CreateInvitationResult:
@@ -71,6 +77,7 @@ class CreateInvitationResult:
     status: str
     expires_at: datetime
     token: str
+
 
 @strawberry.type
 class WorkspaceInvitationType:
@@ -84,10 +91,12 @@ class WorkspaceInvitationType:
     created_at: datetime
     accepted_at: datetime | None
 
+
 @strawberry.input
 class RevokeInvitationInput:
     workspace_id: strawberry.ID
     invitation_id: strawberry.ID
+
 
 @strawberry.input
 class DeclineInvitationInput:
@@ -98,6 +107,7 @@ class DeclineInvitationInput:
 class ResendInvitationInput:
     workspace_id: strawberry.ID
     invitation_id: strawberry.ID
+
 
 @strawberry.input
 class DeleteWorkspaceInput:

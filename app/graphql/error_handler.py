@@ -1,17 +1,16 @@
-
 import logging
 
 from fastapi import Request
-from graphql import GraphQLError
 from strawberry.fastapi import GraphQLRouter
 from strawberry.http import GraphQLHTTPResponse
 from strawberry.types import ExecutionResult
+
+from graphql import GraphQLError
 
 logger = logging.getLogger(__name__)
 
 
 class CentralizedGraphQLRouter(GraphQLRouter):
-
     async def process_result(
         self,
         request: Request,
@@ -34,18 +33,14 @@ class CentralizedGraphQLRouter(GraphQLRouter):
         formatted_errors = []
 
         for error in result.errors:
-
             original_error = error.original_error
 
             # Unexpected Python exceptions
-            if (
-                original_error is not None
-                and not isinstance(original_error, GraphQLError)
+            if original_error is not None and not isinstance(
+                original_error, GraphQLError
             ):
-
                 logger.error(
-                    "Unexpected GraphQL execution error | "
-                    "request_id=%s | path=%s",
+                    "Unexpected GraphQL execution error | request_id=%s | path=%s",
                     request_id,
                     error.path,
                     exc_info=(
@@ -77,12 +72,9 @@ class CentralizedGraphQLRouter(GraphQLRouter):
 
             # Expected GraphQL errors and validation errors
             else:
-
                 formatted_error = error.formatted.copy()
 
-                extensions = dict(
-                    formatted_error.get("extensions") or {}
-                )
+                extensions = dict(formatted_error.get("extensions") or {})
 
                 extensions["requestId"] = request_id
 

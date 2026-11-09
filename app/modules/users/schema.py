@@ -1,5 +1,4 @@
 import strawberry
-
 from graphql import GraphQLError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +9,6 @@ from app.modules.users.types import MeResult, UserProfileResult
 
 @strawberry.type
 class UserQuery:
-
     @strawberry.field
     async def me(
         self,
@@ -27,9 +25,7 @@ class UserQuery:
         )
 
         if user is None:
-            raise GraphQLError(
-                "No application profile exists for this account."
-            )
+            raise GraphQLError("No application profile exists for this account.")
 
         profile = await UserRepository.get_profile_by_user_id(
             db,

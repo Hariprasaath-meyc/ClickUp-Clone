@@ -8,7 +8,6 @@ from app.modules.tasks.models import TaskHistory
 
 
 class TaskHistoryRepository:
-
     @staticmethod
     async def create(
         db: AsyncSession,
