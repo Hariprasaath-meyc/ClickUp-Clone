@@ -2,6 +2,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.authorization.decorators import require_permission
 from app.modules.authorization.permissions import Permission
 from app.modules.tasks.enums import TaskHistoryAction
 from app.modules.tasks.repository import (
@@ -9,13 +10,12 @@ from app.modules.tasks.repository import (
     TaskRepository,
 )
 from app.modules.tasks.services.task_history_service import TaskHistoryService
-from app.modules.workspaces.security.authorization_service import (
-    AuthorizationService,
-)
 
 
 class TaskCommentService:
+
     @staticmethod
+    @require_permission(Permission.TASKS_READ)
     async def create_comment(
         db: AsyncSession,
         workspace_id: uuid.UUID,
@@ -23,13 +23,6 @@ class TaskCommentService:
         user_id: uuid.UUID,
         content: str,
     ):
-
-        await AuthorizationService.require_permission(
-            db=db,
-            user_id=user_id,
-            workspace_id=workspace_id,
-            permission_key=Permission.TASKS_READ,
-        )
 
         task = await TaskRepository.get_by_id(
             db=db,
@@ -66,6 +59,7 @@ class TaskCommentService:
         return comment
 
     @staticmethod
+    @require_permission(Permission.TASKS_READ)
     async def update_comment(
         db: AsyncSession,
         comment_id: uuid.UUID,
@@ -74,13 +68,6 @@ class TaskCommentService:
         user_id: uuid.UUID,
         content: str,
     ):
-
-        await AuthorizationService.require_permission(
-            db=db,
-            user_id=user_id,
-            workspace_id=workspace_id,
-            permission_key=Permission.TASKS_READ,
-        )
 
         comment = await TaskCommentRepository.get_by_id(
             db=db,
@@ -125,6 +112,7 @@ class TaskCommentService:
         return comment
 
     @staticmethod
+    @require_permission(Permission.TASKS_READ)
     async def delete_comment(
         db: AsyncSession,
         comment_id: uuid.UUID,
@@ -132,13 +120,6 @@ class TaskCommentService:
         task_id: uuid.UUID,
         user_id: uuid.UUID,
     ):
-
-        await AuthorizationService.require_permission(
-            db=db,
-            user_id=user_id,
-            workspace_id=workspace_id,
-            permission_key=Permission.TASKS_READ,
-        )
 
         comment = await TaskCommentRepository.get_by_id(
             db=db,

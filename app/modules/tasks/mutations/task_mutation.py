@@ -231,7 +231,7 @@ class TaskMutation:
                 workspace_id=input.workspace_id,
                 task_id=input.task_id,
                 user_ids=input.user_ids,
-                assigned_by=user.id,
+                user_id=user.id,
             )
 
             # 4. Commit transaction
