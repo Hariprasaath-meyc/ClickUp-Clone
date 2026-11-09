@@ -1,23 +1,24 @@
 import strawberry
-
 from graphql import GraphQLError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.authorization import require_authenticated_user
-from app.modules.tasks.types.task_comment_types import DeleteTaskCommentInput, DeleteTaskCommentResult, UpdateTaskCommentInput
-from app.modules.users.repository import UserRepository
-
 from app.modules.tasks.services import TaskCommentService
 from app.modules.tasks.types import (
     CreateTaskCommentInput,
-    TaskCommentType,
     TaskCommentResult,
+    TaskCommentType,
 )
+from app.modules.tasks.types.task_comment_types import (
+    DeleteTaskCommentInput,
+    DeleteTaskCommentResult,
+    UpdateTaskCommentInput,
+)
+from app.modules.users.repository import UserRepository
 
 
 @strawberry.type
 class TaskCommentMutation:
-
     @strawberry.mutation
     async def create_task_comment(
         self,
@@ -73,9 +74,7 @@ class TaskCommentMutation:
 
         except Exception as exc:
             await db.rollback()
-            raise GraphQLError(
-                "Unable to create comment."
-            ) from exc
+            raise GraphQLError("Unable to create comment.") from exc
 
     @strawberry.mutation
     async def update_task_comment(

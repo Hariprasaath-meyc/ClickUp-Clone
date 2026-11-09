@@ -8,7 +8,6 @@ logger = logging.getLogger(__name__)
 
 
 class RequestLoggingMiddleware:
-
     def __init__(self, app):
         self.app = app
 
@@ -30,23 +29,24 @@ class RequestLoggingMiddleware:
         async def send_with_request_id(message):
 
             if message["type"] == "http.response.start":
-                #Avoid duplicate request ID headers.
+                # Avoid duplicate request ID headers.
                 headers = [
                     (key, value)
                     for key, value in message.get("headers", [])
                     if key.lower() != b"x-request-id"
                 ]
-                headers.append((
-                    b"x-request-id",
-                    request_id.encode("utf-8"),
-                ))
+                headers.append(
+                    (
+                        b"x-request-id",
+                        request_id.encode("utf-8"),
+                    )
+                )
 
                 message["headers"] = headers
 
             await send(message)
 
         try:
-
             await self.app(
                 scope,
                 receive,
@@ -54,18 +54,12 @@ class RequestLoggingMiddleware:
             )
 
         except Exception:
-
-            logger.exception(
-                "Unhandled HTTP application exception"
-            )
+            logger.exception("Unhandled HTTP application exception")
 
             raise
 
         finally:
-
-            duration = (
-                time.perf_counter() - start_time
-            ) * 1000
+            duration = (time.perf_counter() - start_time) * 1000
 
             logger.info(
                 "HTTP request completed | method=%s | path=%s | duration=%.2fms",

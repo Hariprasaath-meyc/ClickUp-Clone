@@ -1,7 +1,7 @@
 import uuid
-import strawberry
-
 from datetime import datetime
+
+import strawberry
 
 
 @strawberry.input

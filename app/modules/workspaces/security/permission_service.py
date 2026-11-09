@@ -2,16 +2,16 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.modules.workspaces.models.models import (
     Permission as PermissionModel,
+)
+from app.modules.workspaces.models.models import (
     RolePermission,
 )
 
 
-
-
 class PermissionService:
-
     @staticmethod
     async def get_role_permissions(
         db: AsyncSession,
@@ -32,7 +32,6 @@ class PermissionService:
         )
 
         return list(result.scalars().all())
-
 
     @staticmethod
     async def has_permission(

@@ -1,4 +1,3 @@
-
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
@@ -8,7 +7,6 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.core.config import settings
-
 
 if not settings.database_url:
     raise RuntimeError("DATABASE_URL is not configured")
@@ -27,6 +25,6 @@ SessionFactory = async_sessionmaker(
 )
 
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
+async def get_db() -> AsyncGenerator[AsyncSession]:
     async with SessionFactory() as session:
         yield session

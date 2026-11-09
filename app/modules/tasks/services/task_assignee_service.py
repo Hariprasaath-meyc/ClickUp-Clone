@@ -1,23 +1,22 @@
-
 import uuid
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.authorization.permissions import Permission
+from app.modules.tasks.enums import TaskHistoryAction
 from app.modules.tasks.repository import (
-    TaskRepository,
     TaskAssigneeRepository,
+    TaskRepository,
 )
+from app.modules.tasks.services.task_history_service import TaskHistoryService
 from app.modules.workspaces.models import WorkspaceMember
 from app.modules.workspaces.security.authorization_service import (
     AuthorizationService,
 )
-from app.modules.tasks.services.task_history_service import TaskHistoryService
-from app.modules.tasks.enums import TaskHistoryAction
+
 
 class TaskAssigneeService:
-
     @staticmethod
     async def assign_users(
         db: AsyncSession,
@@ -66,29 +65,20 @@ class TaskAssigneeService:
         invalid_ids = requested_ids - member_ids
 
         if invalid_ids:
-            raise ValueError(
-                "One or more users are not members of this workspace."
-            )
+            raise ValueError("One or more users are not members of this workspace.")
 
         # 5. Retrieve existing assignments
-        existing_assignments = (
-            await TaskAssigneeRepository.get_task_assignees(
-                db,
-                workspace_id,
-                task_id,
-            )
+        existing_assignments = await TaskAssigneeRepository.get_task_assignees(
+            db,
+            workspace_id,
+            task_id,
         )
 
-        existing_user_ids = {
-            assignment.user_id
-            for assignment in existing_assignments
-        }
+        existing_user_ids = {assignment.user_id for assignment in existing_assignments}
 
         # 6. Assign only users who are not already assigned
         new_user_ids = [
-            user_id
-            for user_id in user_ids
-            if user_id not in existing_user_ids
+            user_id for user_id in user_ids if user_id not in existing_user_ids
         ]
 
         if new_user_ids:
@@ -99,9 +89,7 @@ class TaskAssigneeService:
                 actor_id=assigned_by,
                 action=TaskHistoryAction.TASK_ASSIGNED,
                 changes={
-                    "assigned_user_ids": [
-                        str(user_id) for user_id in new_user_ids
-                    ]
+                    "assigned_user_ids": [str(user_id) for user_id in new_user_ids]
                 },
             )
 
@@ -146,23 +134,16 @@ class TaskAssigneeService:
         user_ids = list(dict.fromkeys(user_ids))
 
         # 4. Remove selected assignments
-        existing_assignments = (
-    await TaskAssigneeRepository.get_task_assignees(
-        db,
-        workspace_id,
-        task_id,
-    )
-)
+        existing_assignments = await TaskAssigneeRepository.get_task_assignees(
+            db,
+            workspace_id,
+            task_id,
+        )
 
-        existing_user_ids = {
-            assignment.user_id
-            for assignment in existing_assignments
-        }
+        existing_user_ids = {assignment.user_id for assignment in existing_assignments}
 
         removed_user_ids = [
-            user_id
-            for user_id in user_ids
-            if user_id in existing_user_ids
+            user_id for user_id in user_ids if user_id in existing_user_ids
         ]
 
         if not removed_user_ids:
@@ -182,13 +163,12 @@ class TaskAssigneeService:
             actor_id=requested_by,
             action=TaskHistoryAction.TASK_UNASSIGNED,
             changes={
-                "unassigned_user_ids": [
-                    str(user_id) for user_id in removed_user_ids
-                ]
+                "unassigned_user_ids": [str(user_id) for user_id in removed_user_ids]
             },
         )
 
         return removed_count
+
     @staticmethod
     async def get_my_assigned_tasks(
         db: AsyncSession,

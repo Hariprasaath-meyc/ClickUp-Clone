@@ -6,9 +6,7 @@ from app.core.config import settings
 def get_cognito_client():
 
     if not settings.cognito_client_id:
-        raise RuntimeError(
-            "COGNITO_CLIENT_ID is not configured"
-        )
+        raise RuntimeError("COGNITO_CLIENT_ID is not configured")
 
     return boto3.client(
         "cognito-idp",
@@ -23,9 +21,7 @@ def refresh_cognito_session(
     client = get_cognito_client()
 
     if not settings.cognito_client_secret:
-        raise RuntimeError(
-            "COGNITO_CLIENT_SECRET is not configured"
-        )
+        raise RuntimeError("COGNITO_CLIENT_SECRET is not configured")
 
     response = client.get_tokens_from_refresh_token(
         RefreshToken=refresh_token,

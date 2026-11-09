@@ -1,15 +1,14 @@
-
-from datetime import datetime, timezone
 import uuid
+from datetime import UTC, datetime
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from uuid import UUID
+
 from app.modules.tasks.models import Task
 
 
 class TaskRepository:
-
     @staticmethod
     async def create(
         db: AsyncSession,
@@ -68,13 +67,13 @@ class TaskRepository:
         await db.flush()
 
         return task
-    
+
     @staticmethod
     async def soft_delete(
         db: AsyncSession,
         task,
     ):
-        task.deleted_at = datetime.now(timezone.utc)
+        task.deleted_at = datetime.now(UTC)
 
         await db.flush()
 
@@ -96,7 +95,6 @@ class TaskRepository:
         )
 
         return result.scalars().all()
-
 
     @staticmethod
     async def restore(

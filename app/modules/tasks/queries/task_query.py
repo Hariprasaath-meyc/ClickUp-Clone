@@ -1,23 +1,21 @@
-
 import uuid
+from uuid import UUID
 
 import strawberry
 from graphql import GraphQLError
 from sqlalchemy.ext.asyncio import AsyncSession
-from uuid import UUID
-from app.modules.auth.authorization import require_authenticated_user
-from app.modules.tasks.services.task_assignee_service import TaskAssigneeService
-from app.modules.users.repository import UserRepository
-from app.modules.tasks.services import TaskService
-from app.modules.tasks.types import TaskType
-from app.modules.tasks.repository import TaskAssigneeRepository
-from app.modules.tasks.types import TaskAssigneeType
 from strawberry.types import Info
+
+from app.modules.auth.authorization import require_authenticated_user
+from app.modules.tasks.repository import TaskAssigneeRepository
+from app.modules.tasks.services import TaskService
+from app.modules.tasks.services.task_assignee_service import TaskAssigneeService
+from app.modules.tasks.types import TaskAssigneeType, TaskType
+from app.modules.users.repository import UserRepository
 
 
 @strawberry.type
 class TaskQuery:
-
     @strawberry.field
     async def workspace_tasks(
         self,

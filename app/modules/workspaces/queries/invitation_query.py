@@ -1,15 +1,12 @@
-
-import strawberry
-
 from uuid import UUID
 
+import strawberry
 from graphql import GraphQLError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.authorization import require_authenticated_user
 from app.modules.authorization.permissions import Permission
 from app.modules.users.repository import UserRepository
-
 from app.modules.workspaces.repositories.invitation_repository import (
     InvitationRepository,
 )
@@ -22,7 +19,6 @@ from app.modules.workspaces.types import WorkspaceInvitationType
 
 @strawberry.type
 class InvitationQuery:
-
     # Get all invitations belonging to a workspace
     @strawberry.field
     async def workspace_invitations(
@@ -65,7 +61,6 @@ class InvitationQuery:
         results = []
 
         for invitation in invitations:
-
             role = await RoleService.get_role_by_id(
                 db=db,
                 workspace_id=parsed_workspace_id,
@@ -134,7 +129,6 @@ class InvitationQuery:
         results = []
 
         for invitation in invitations:
-
             role = await RoleService.get_role_by_id(
                 db=db,
                 workspace_id=workspace_uuid,

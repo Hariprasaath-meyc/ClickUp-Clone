@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -5,12 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.workspaces.models.models import Workspace, WorkspaceMember
 
-from datetime import datetime, timezone
-from sqlalchemy.ext.asyncio import AsyncSession
-
 
 class WorkspaceRepository:
-
     @staticmethod
     async def get_user_workspaces(
         db: AsyncSession,
@@ -27,17 +24,13 @@ class WorkspaceRepository:
         )
 
         return list(result.scalars().all())
-    
+
     @staticmethod
     async def get_by_id(
         db: AsyncSession,
         workspace_id: UUID,
     ) -> Workspace | None:
-        result = await db.execute(
-            select(Workspace).where(
-                Workspace.id == workspace_id
-            )
-        )
+        result = await db.execute(select(Workspace).where(Workspace.id == workspace_id))
 
         return result.scalar_one_or_none()
 
@@ -65,11 +58,7 @@ class WorkspaceRepository:
         db: AsyncSession,
         slug: str,
     ) -> bool:
-        result = await db.execute(
-            select(Workspace.id).where(
-                Workspace.slug == slug
-            )
-        )
+        result = await db.execute(select(Workspace.id).where(Workspace.slug == slug))
 
         return result.scalar_one_or_none() is not None
 
@@ -78,19 +67,13 @@ class WorkspaceRepository:
         db: AsyncSession,
         slug: str,
     ) -> Workspace | None:
-        result = await db.execute(
-            select(Workspace).where(
-                Workspace.slug == slug
-            )
-        )
+        result = await db.execute(select(Workspace).where(Workspace.slug == slug))
 
         return result.scalar_one_or_none()
 
-
-
     @staticmethod
     async def soft_delete(db: AsyncSession, workspace):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         workspace.deleted_at = now
         workspace.updated_at = now

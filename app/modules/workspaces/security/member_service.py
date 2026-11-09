@@ -13,7 +13,6 @@ from app.modules.workspaces.security.role_service import RoleService
 
 
 class MemberService:
-
     @staticmethod
     async def get_workspace_members(
         db: AsyncSession,
@@ -41,7 +40,7 @@ class MemberService:
         )
 
         return list(result.all())
-    
+
     @staticmethod
     async def is_workspace_member(
         db: AsyncSession,
@@ -86,6 +85,7 @@ class MemberService:
         )
 
         return result.one_or_none()
+
     @staticmethod
     async def change_member_role(
         db: AsyncSession,
@@ -132,11 +132,9 @@ class MemberService:
         # Step 4: Prevent assigning OWNER.
         if new_role.role_key == "OWNER":
             raise ValueError("The OWNER role cannot be assigned.")
-        #Step 5: Check if the member already has the requested role.
+        # Step 5: Check if the member already has the requested role.
         if membership.role_id == new_role.id:
-            raise ValueError(
-                f"Member already has the {new_role.role_key} role."
-            )
+            raise ValueError(f"Member already has the {new_role.role_key} role.")
         # Step 6: Update membership.
         membership.role_id = new_role.id
 

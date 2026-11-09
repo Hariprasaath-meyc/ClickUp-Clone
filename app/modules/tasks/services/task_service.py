@@ -1,20 +1,19 @@
-
 import uuid
 from datetime import datetime
 from uuid import UUID
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.authorization.permissions import Permission
-from app.modules.tasks.enums import TaskPriority, TaskStatus
+from app.modules.tasks.enums import TaskHistoryAction, TaskPriority, TaskStatus
 from app.modules.tasks.repository import TaskRepository
+from app.modules.tasks.services.task_history_service import TaskHistoryService
 from app.modules.workspaces.security.authorization_service import (
     AuthorizationService,
 )
-from app.modules.tasks.services.task_history_service import TaskHistoryService
-from app.modules.tasks.enums import TaskHistoryAction
+
 
 class TaskService:
-
     @staticmethod
     async def create_task(
         db: AsyncSession,
@@ -30,15 +29,14 @@ class TaskService:
 
         # 1. Check whether the user has permission to create tasks.
         await AuthorizationService.require_permission(
-        db=db,
-        user_id=user_id,
-        workspace_id=workspace_id,
-        permission_key=Permission.TASKS_CREATE.value,
-    )
+            db=db,
+            user_id=user_id,
+            workspace_id=workspace_id,
+            permission_key=Permission.TASKS_CREATE.value,
+        )
 
         # 2. Validate the parent task if creating a subtask.
         if parent_task_id is not None:
-
             parent_task = await TaskRepository.get_by_id(
                 db,
                 parent_task_id,
@@ -46,15 +44,11 @@ class TaskService:
             )
 
             if parent_task is None:
-                raise ValueError(
-                    "Parent task not found in this workspace."
-                )
+                raise ValueError("Parent task not found in this workspace.")
 
             # 3. Enforce the one-level subtask restriction.
             if parent_task.parent_task_id is not None:
-                raise ValueError(
-                    "A subtask cannot have another subtask."
-                )
+                raise ValueError("A subtask cannot have another subtask.")
 
         # 4. Prepare trusted task data.
         task_data = {
@@ -70,9 +64,9 @@ class TaskService:
 
         # 5. Create the task through the repository.
         task = await TaskRepository.create(
-        db=db,
-        task_data=task_data,
-    )
+            db=db,
+            task_data=task_data,
+        )
 
         await TaskHistoryService.record_activity(
             db=db,
@@ -85,22 +79,14 @@ class TaskService:
                 "description": task.description,
                 "status": task.status.value,
                 "priority": task.priority.value,
-                "due_date": (
-                    task.due_date.isoformat()
-                    if task.due_date
-                    else None
-                ),
+                "due_date": (task.due_date.isoformat() if task.due_date else None),
                 "parent_task_id": (
-                    str(task.parent_task_id)
-                    if task.parent_task_id
-                    else None
+                    str(task.parent_task_id) if task.parent_task_id else None
                 ),
             },
         )
 
         return task
-
-        
 
     @staticmethod
     async def update_task(
@@ -139,9 +125,7 @@ class TaskService:
         }
 
         update_data = {
-            key: value
-            for key, value in update_data.items()
-            if key in allowed_fields
+            key: value for key, value in update_data.items() if key in allowed_fields
         }
 
         if not update_data:
@@ -154,12 +138,8 @@ class TaskService:
 
             update_data["title"] = update_data["title"].strip()
 
-        
         # 5. Capture existing values before updating
-        old_values = {
-            field: getattr(task, field)
-            for field in update_data
-        }
+        old_values = {field: getattr(task, field) for field in update_data}
 
         # 6. Update through repository
         task = await TaskRepository.update(
@@ -175,7 +155,6 @@ class TaskService:
             new_value = getattr(task, field)
 
             if old_value != new_value:
-
                 if isinstance(old_value, (TaskStatus, TaskPriority)):
                     old_value = old_value.value
                 elif isinstance(old_value, datetime):
@@ -252,7 +231,7 @@ class TaskService:
             raise ValueError("Task not found.")
 
         return task
-    
+
     @staticmethod
     async def delete_task(
         db: AsyncSession,

@@ -4,10 +4,10 @@ from uuid import UUID
 import strawberry
 from strawberry import Maybe
 
-from app.modules.tasks.enums import TaskStatus, TaskPriority
-
+from app.modules.tasks.enums import TaskPriority, TaskStatus
 
 # Task Inputs
+
 
 @strawberry.input
 class CreateTaskInput:
@@ -53,6 +53,7 @@ class DeleteTaskInput:
 
 # Task Output Types
 
+
 @strawberry.type
 class TaskAssigneeType:
     workspace_id: UUID
@@ -81,6 +82,7 @@ class TaskType:
 
 # Task Results
 
+
 @strawberry.type
 class TaskResult:
     success: bool
@@ -107,12 +109,10 @@ class DeleteTaskResult:
     success: bool
     message: str
 
-@strawberry.input
-class RestoreTaskInput:
-    workspace_id: UUID
-    task_id: UUID
 
 @strawberry.input
 class RestoreTaskInput:
     workspace_id: UUID
     task_id: UUID
+
+

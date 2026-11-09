@@ -5,14 +5,13 @@ from graphql import GraphQLError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.authorization import require_authenticated_user
-from app.modules.users.repository import UserRepository
 from app.modules.tasks.services import TaskHistoryService
 from app.modules.tasks.types import TaskHistoryType
+from app.modules.users.repository import UserRepository
 
 
 @strawberry.type
 class TaskHistoryQuery:
-
     @strawberry.field
     async def task_history(
         self,

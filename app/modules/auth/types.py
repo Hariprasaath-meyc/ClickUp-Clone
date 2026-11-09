@@ -1,11 +1,13 @@
 import strawberry
 
+
 @strawberry.type
 class CodeDeliveryDetails:
     destination: str | None
     delivery_medium: str | None
     attribute_name: str | None
-    
+
+
 @strawberry.type
 class SignupResult:
     confirmation_required: bool

@@ -2,12 +2,11 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.workspaces.security.role_service import RoleService
 from app.modules.workspaces.security.permission_service import PermissionService
+from app.modules.workspaces.security.role_service import RoleService
 
 
 class AuthorizationService:
-
     @staticmethod
     async def require_permission(
         db: AsyncSession,
@@ -25,9 +24,7 @@ class AuthorizationService:
 
         # Step 2: Ensure the user belongs to this workspace.
         if role is None:
-            raise PermissionError(
-                "You are not a member of this workspace."
-            )
+            raise PermissionError("You are not a member of this workspace.")
 
         # Step 3: Check whether the role has the required permission.
         allowed = await PermissionService.has_permission(
@@ -39,6 +36,4 @@ class AuthorizationService:
 
         # Step 4: Deny access if permission is missing.
         if not allowed:
-            raise PermissionError(
-                "You do not have permission to perform this action."
-            )
+            raise PermissionError("You do not have permission to perform this action.")

@@ -1,12 +1,11 @@
 import uuid
-
 from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
-    String,
     DateTime,
     ForeignKey,
+    String,
     UniqueConstraint,
     func,
 )

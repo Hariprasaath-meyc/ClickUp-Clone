@@ -1,5 +1,4 @@
 import strawberry
-
 from graphql import GraphQLError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,7 +12,6 @@ from app.modules.users.types import (
 
 @strawberry.type
 class UserMutation:
-
     @strawberry.mutation
     async def update_my_profile(
         self,
@@ -45,14 +43,10 @@ class UserMutation:
             display_name = input.display_name.strip()
 
             if not display_name:
-                raise GraphQLError(
-                    "Display name cannot be empty."
-                )
+                raise GraphQLError("Display name cannot be empty.")
 
             if len(display_name) > 100:
-                raise GraphQLError(
-                    "Display name cannot exceed 100 characters."
-                )
+                raise GraphQLError("Display name cannot exceed 100 characters.")
 
             profile.display_name = display_name
 

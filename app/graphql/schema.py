@@ -1,28 +1,24 @@
-
-
 import strawberry
-from graphql import GraphQLError
 
 from app.modules.auth.mutation import AuthMutation
-
 from app.modules.tags.mutations.tag_mutation import TagMutation
 from app.modules.tags.queries.tag_query import TagQuery
-from app.modules.tasks.mutations.task_comment_mutation import TaskCommentMutation
-from app.modules.tasks.queries.task_history_query import TaskHistoryQuery
-from app.modules.users.schema import UserQuery
-from app.modules.users.mutation import UserMutation
-from app.modules.tasks.queries import TaskQuery
-from app.modules.workspaces.mutations.membership_mutation import MembershipMutation
-from app.modules.workspaces.queries import (
-    WorkspaceQuery,
-    InvitationQuery,
-    MembershipQuery,
-)
 from app.modules.tasks.mutations import TaskMutation
+from app.modules.tasks.mutations.task_comment_mutation import TaskCommentMutation
+from app.modules.tasks.queries import TaskQuery
+from app.modules.tasks.queries.task_history_query import TaskHistoryQuery
+from app.modules.users.mutation import UserMutation
+from app.modules.users.schema import UserQuery
 from app.modules.workspaces.mutations import (
     Mutation as WorkspaceMutations,
 )
-
+from app.modules.workspaces.mutations.membership_mutation import MembershipMutation
+from app.modules.workspaces.queries import (
+    InvitationQuery,
+    MembershipQuery,
+    WorkspaceQuery,
+)
+from graphql import GraphQLError
 
 
 @strawberry.type
@@ -34,9 +30,6 @@ class Query(
     TaskQuery,
     TaskHistoryQuery,
     TagQuery,
-
-    
-
 ):
     @strawberry.field
     def hello(self) -> str:
@@ -59,9 +52,7 @@ class Mutation(
     MembershipMutation,
     TaskMutation,
     TaskCommentMutation,
-    TagMutation
-    
-    
+    TagMutation,
 ):
     pass
 

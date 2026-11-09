@@ -1,14 +1,12 @@
-
 import uuid
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.tasks.models import TaskAssignee
-
 from app.modules.tasks.models import Task, TaskAssignee
-class TaskAssigneeRepository:
 
+
+class TaskAssigneeRepository:
     @staticmethod
     async def assign_users(
         db: AsyncSession,

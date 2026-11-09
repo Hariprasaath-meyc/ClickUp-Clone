@@ -1,6 +1,6 @@
-
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     DateTime,
@@ -14,12 +14,14 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from typing import TYPE_CHECKING
+
 from app.db.base import Base
-from app.modules.tasks.enums import TaskStatus, TaskPriority
+from app.modules.tasks.enums import TaskPriority, TaskStatus
 
 if TYPE_CHECKING:
     from app.modules.tags.models.task_tag_model import TaskTag
+
+
 class Task(Base):
     __tablename__ = "tasks"
 
@@ -119,9 +121,9 @@ class Task(Base):
         back_populates="parent_task",
         foreign_keys=[workspace_id, parent_task_id],
     )
-    
+
     task_tags: Mapped[list["TaskTag"]] = relationship(
-    "TaskTag",
-    back_populates="task",
-    cascade="all, delete-orphan",
-)
+        "TaskTag",
+        back_populates="task",
+        cascade="all, delete-orphan",
+    )
