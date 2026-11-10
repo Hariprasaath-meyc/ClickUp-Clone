@@ -426,6 +426,86 @@ sequenceDiagram
     Note over BE,Auth: Failed authentication or permission checks stop the operation and return an error.
 ```
 
+
+### Task management flow (high-level)
+
+This flow covers task creation, retrieval, updates, soft deletion, and restoration. Each operation requires authentication and the relevant workspace permission.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Workspace Member
+    participant FE as Frontend
+    participant BE as FastAPI + GraphQL
+    participant Auth as Authentication / RBAC
+    participant TS as Task Service
+    participant DB as PostgreSQL
+
+    Note over User,DB: 1. Create Task
+    User->>FE: Enter task details
+    FE->>BE: Submit create task request
+    BE->>Auth: Authenticate and check tasks.create
+    Auth-->>BE: Access granted
+    BE->>TS: Create task
+    TS->>TS: Validate task details and workspace
+    TS->>DB: Save new task
+    DB-->>TS: Task created
+    TS-->>BE: Task creation result
+    BE-->>FE: Task response
+    FE-->>User: Display created task
+
+    Note over User,DB: 2. View Tasks
+    User->>FE: Open workspace tasks
+    FE->>BE: Request tasks
+    BE->>Auth: Authenticate and check tasks.read
+    Auth-->>BE: Access granted
+    BE->>TS: Get workspace tasks
+    TS->>DB: Retrieve tasks
+    DB-->>TS: Task records
+    TS-->>BE: Task list
+    BE-->>FE: Tasks response
+    FE-->>User: Display tasks
+
+    Note over User,DB: 3. Update Task
+    User->>FE: Edit task details, status or priority
+    FE->>BE: Submit task update
+    BE->>Auth: Authenticate and check tasks.update
+    Auth-->>BE: Access granted
+    BE->>TS: Update task
+    TS->>TS: Validate task and update payload
+    TS->>DB: Update task record
+    DB-->>TS: Updated task
+    TS-->>BE: Update result
+    BE-->>FE: Updated task response
+    FE-->>User: Display updated task
+
+    Note over User,DB: 4. Soft Delete Task
+    User->>FE: Request task deletion
+    FE->>BE: Submit delete request
+    BE->>Auth: Authenticate and check tasks.delete
+    Auth-->>BE: Access granted
+    BE->>TS: Delete task
+    TS->>DB: Mark task as deleted
+    DB-->>TS: Deletion result
+    TS-->>BE: Delete result
+    BE-->>FE: Success response
+    FE-->>User: Task deleted
+
+    Note over User,DB: 5. Restore Task
+    User->>FE: Request task restoration
+    FE->>BE: Submit restore request
+    BE->>Auth: Authenticate and check restore permission
+    Auth-->>BE: Access granted
+    BE->>TS: Restore task
+    TS->>DB: Clear task deletion marker
+    DB-->>TS: Task restored
+    TS-->>BE: Restore result
+    BE-->>FE: Success response
+    FE-->>User: Display restored task
+
+    Note over BE,Auth: Failed authentication or permission checks stop the operation and return an error.
+```
+
 For authenticated GraphQL operations, send the Cognito **access token**:
 
 ```http
