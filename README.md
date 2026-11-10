@@ -354,6 +354,78 @@ sequenceDiagram
     Note over BE,Auth: If authentication or permission checks fail, the backend returns an error and the operation is not executed.
 ```
 
+
+### Workspace member management flow (high-level)
+
+This flow covers viewing workspace members, updating a member's role, and removing a member. Each operation requires authentication and the relevant workspace permission. Owner membership is protected from ordinary role-change and removal operations.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Workspace Owner / Admin
+    participant FE as Frontend
+    participant BE as FastAPI + GraphQL
+    participant Auth as Authentication / RBAC
+    participant MS as Workspace Member Service
+    participant DB as PostgreSQL
+
+    Note over User,DB: 1. View Workspace Members
+    User->>FE: Open workspace members
+    FE->>BE: Request member list
+    BE->>Auth: Authenticate and check members.read
+    Auth-->>BE: Access granted
+    BE->>MS: Get workspace members
+    MS->>DB: Retrieve workspace memberships
+    DB-->>MS: Member details and roles
+    MS-->>BE: Member list
+    BE-->>FE: Members response
+    FE-->>User: Display workspace members
+
+    Note over User,DB: 2. Update Member Role
+    User->>FE: Select member and new role
+    FE->>BE: Submit role update
+    BE->>Auth: Authenticate and check members.update_role
+    Auth-->>BE: Access granted
+    BE->>MS: Update member role
+    MS->>DB: Validate membership and role
+    DB-->>MS: Validation result
+
+    alt Valid role update
+        MS->>DB: Update member role
+        DB-->>MS: Role updated
+        MS-->>BE: Update successful
+        BE-->>FE: Success response
+        FE-->>User: Display updated role
+    else Invalid operation
+        MS-->>BE: Reject role update
+        BE-->>FE: Error response
+        FE-->>User: Display error
+    end
+
+    Note over User,DB: 3. Remove Workspace Member
+    User->>FE: Select member and remove
+    FE->>BE: Submit member removal
+    BE->>Auth: Authenticate and check members.remove
+    Auth-->>BE: Access granted
+    BE->>MS: Remove workspace member
+    MS->>DB: Validate membership and owner restrictions
+    DB-->>MS: Validation result
+
+    alt Removal allowed
+        MS->>DB: Remove workspace membership
+        DB-->>MS: Membership removed
+        MS-->>BE: Removal successful
+        BE-->>FE: Success response
+        FE-->>User: Member removed
+    else Removal not allowed
+        MS-->>BE: Reject removal
+        BE-->>FE: Error response
+        FE-->>User: Display error
+    end
+
+    Note over BE,Auth: Failed authentication or permission checks stop the operation and return an error.
+```
+
 For authenticated GraphQL operations, send the Cognito **access token**:
 
 ```http
