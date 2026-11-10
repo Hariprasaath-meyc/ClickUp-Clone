@@ -15,7 +15,6 @@ from app.modules.workspaces.models import WorkspaceMember
 
 
 class TaskAssigneeService:
-
     @staticmethod
     @require_permission(Permission.TASKS_ASSIGN)
     async def assign_users(
@@ -57,9 +56,7 @@ class TaskAssigneeService:
         invalid_ids = requested_ids - member_ids
 
         if invalid_ids:
-            raise ValueError(
-                "One or more users are not members of this workspace."
-            )
+            raise ValueError("One or more users are not members of this workspace.")
 
         # 4. Retrieve existing assignments
         existing_assignments = await TaskAssigneeRepository.get_task_assignees(
@@ -68,9 +65,7 @@ class TaskAssigneeService:
             task_id,
         )
 
-        existing_user_ids = {
-            assignment.user_id for assignment in existing_assignments
-        }
+        existing_user_ids = {assignment.user_id for assignment in existing_assignments}
 
         # 5. Assign only users who are not already assigned
         new_user_ids = [
@@ -133,14 +128,10 @@ class TaskAssigneeService:
             task_id,
         )
 
-        existing_user_ids = {
-            assignment.user_id for assignment in existing_assignments
-        }
+        existing_user_ids = {assignment.user_id for assignment in existing_assignments}
 
         removed_user_ids = [
-            assignee_id
-            for assignee_id in user_ids
-            if assignee_id in existing_user_ids
+            assignee_id for assignee_id in user_ids if assignee_id in existing_user_ids
         ]
 
         if not removed_user_ids:

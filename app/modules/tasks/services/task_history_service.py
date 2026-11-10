@@ -13,7 +13,6 @@ from app.modules.tasks.repository import (
 
 
 class TaskHistoryService:
-
     @staticmethod
     @require_permission(Permission.TASKS_READ)
     async def get_task_history(

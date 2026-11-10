@@ -1,8 +1,8 @@
 import logging
-from uuid import UUID
 
 import strawberry
 from graphql import GraphQLError
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +12,11 @@ from app.modules.auth.authorization import require_authenticated_user
 from app.modules.users.repository import UserRepository
 from app.modules.workspaces.models.models import Workspace
 from app.modules.workspaces.repository import WorkspaceRepository
+from app.modules.workspaces.schemas.workspace import (
+    CreateWorkspacePayload,
+    DeleteWorkspacePayload,
+    UpdateWorkspacePayload,
+)
 from app.modules.workspaces.security.authorization_service import (
     AuthorizationService,
 )
@@ -40,6 +45,16 @@ class WorkspaceMutation:
         claims = require_authenticated_user(info)
         db: AsyncSession = info.context["db"]
 
+        # 1. Validate payload
+        try:
+            payload = CreateWorkspacePayload(
+                name=input.name,
+                slug=input.slug,
+            )
+        except ValidationError as exc:
+            raise GraphQLError(str(exc)) from exc
+
+        # 2. Resolve local user
         user = await UserRepository.get_by_cognito_sub(
             db,
             claims["sub"],
@@ -48,25 +63,19 @@ class WorkspaceMutation:
         if user is None:
             raise GraphQLError("User not found. Please log in again.")
 
-        name = input.name.strip()
-        slug = input.slug.strip().lower()
-
-        if not name or len(name) > 100:
-            raise GraphQLError("Workspace name must be between 1 and 100 characters.")
-
-        if not slug or len(slug) > 100:
-            raise GraphQLError("Workspace slug must be between 1 and 100 characters.")
-
         try:
+            # 3. Execute business operation
             workspace = await create_workspace(
                 db=db,
                 user_id=user.id,
-                name=name,
-                slug=slug,
+                name=payload.name,
+                slug=payload.slug,
             )
 
+            # 4. Commit transaction
             await db.commit()
 
+            # 5. Construct GraphQL response
             return WorkspaceResult(
                 success=True,
                 message="Workspace created successfully.",
@@ -106,6 +115,17 @@ class WorkspaceMutation:
         claims = require_authenticated_user(info)
         db: AsyncSession = info.context["db"]
 
+        # 1. Validate payload
+        try:
+            payload = UpdateWorkspacePayload(
+                id=str(input.id),
+                name=input.name,
+                slug=input.slug,
+            )
+        except ValidationError as exc:
+            raise GraphQLError(str(exc)) from exc
+
+        # 2. Resolve local user
         user = await UserRepository.get_by_cognito_sub(
             db,
             claims["sub"],
@@ -114,21 +134,14 @@ class WorkspaceMutation:
         if user is None:
             raise GraphQLError("User not found. Please log in again.")
 
-        # Validate workspace ID
-        try:
-            workspace_id = UUID(str(input.id))
-        except ValueError as exc:
-            raise GraphQLError("Invalid workspace ID.") from exc
-
-        # Retrieve workspace
-        result = await db.execute(select(Workspace).where(Workspace.id == workspace_id))
-
+        # 3. Retrieve workspace
+        result = await db.execute(select(Workspace).where(Workspace.id == payload.id))
         workspace = result.scalar_one_or_none()
 
         if workspace is None:
             raise GraphQLError("Workspace not found.")
 
-        # Check authorization
+        # 4. Check authorization
         try:
             await AuthorizationService.require_permission(
                 db=db,
@@ -139,32 +152,20 @@ class WorkspaceMutation:
         except PermissionError as exc:
             raise GraphQLError(str(exc)) from exc
 
-        # Validate update fields
-        name = input.name.strip() if input.name is not None else None
-
-        slug = input.slug.strip().lower() if input.slug is not None else None
-
-        if name is not None and not 1 <= len(name) <= 100:
-            raise GraphQLError("Workspace name must be between 1 and 100 characters.")
-
-        if slug is not None and not 1 <= len(slug) <= 100:
-            raise GraphQLError("Slug must be between 1 and 100 characters.")
-
-        if name is None and slug is None:
-            raise GraphQLError("Provide at least one field to update.")
-
-        # Update workspace
         try:
+            # 5. Execute update
             workspace = await WorkspaceRepository.update(
                 db,
                 workspace,
-                name=name,
-                slug=slug,
+                name=payload.name,
+                slug=payload.slug,
             )
 
+            # 6. Commit transaction
             await db.commit()
             await db.refresh(workspace)
 
+            # 7. Construct GraphQL response
             return WorkspaceType(
                 id=strawberry.ID(str(workspace.id)),
                 name=workspace.name,
@@ -172,6 +173,7 @@ class WorkspaceMutation:
                 created_by=strawberry.ID(str(workspace.created_by)),
                 created_at=workspace.created_at,
                 updated_at=workspace.updated_at,
+                deleted_at=workspace.deleted_at,
             )
 
         except IntegrityError as exc:
@@ -184,6 +186,7 @@ class WorkspaceMutation:
             await db.rollback()
             raise
 
+    # Delete workspace
     @strawberry.mutation
     async def delete_workspace(
         self,
@@ -194,39 +197,42 @@ class WorkspaceMutation:
         db: AsyncSession = info.context["db"]
 
         try:
-            # Authenticate the user
+            # 1. Authenticate user
             claims = require_authenticated_user(info)
 
-            cognito_sub = claims["sub"]
+            # 2. Validate payload
+            payload = DeleteWorkspacePayload(
+                workspace_id=str(input.workspace_id),
+            )
 
-            # Resolve the local PostgreSQL user
+            # 3. Resolve local user
             user = await UserRepository.get_by_cognito_sub(
                 session=db,
-                cognito_sub=cognito_sub,
+                cognito_sub=claims["sub"],
             )
 
             if user is None:
                 raise ValueError("User not found.")
 
-            # Call workspace service
+            # 4. Execute business operation
             workspace = await delete_workspace(
                 db=db,
-                workspace_id=input.workspace_id,
+                workspace_id=payload.workspace_id,
                 user_id=user.id,
             )
 
-            # Construct the response while ORM attributes are accessible
+            # 5. Construct response before commit
             workspace_type = WorkspaceType(
-                id=workspace.id,
+                id=strawberry.ID(str(workspace.id)),
                 name=workspace.name,
                 slug=workspace.slug,
-                created_by=workspace.created_by,
+                created_by=strawberry.ID(str(workspace.created_by)),
                 created_at=workspace.created_at,
                 updated_at=workspace.updated_at,
                 deleted_at=workspace.deleted_at,
             )
 
-            # Commit after constructing the response
+            # 6. Commit transaction
             await db.commit()
 
             return WorkspaceResult(
@@ -234,6 +240,10 @@ class WorkspaceMutation:
                 message="Workspace deleted successfully.",
                 workspace=workspace_type,
             )
+
+        except ValidationError as exc:
+            await db.rollback()
+            raise GraphQLError(str(exc)) from exc
 
         except GraphQLError:
             await db.rollback()
@@ -246,6 +256,10 @@ class WorkspaceMutation:
                 message=str(exc),
                 workspace=None,
             )
+
+        except IntegrityError as exc:
+            await db.rollback()
+            raise GraphQLError("Unable to delete workspace.") from exc
 
         except Exception as exc:
             await db.rollback()

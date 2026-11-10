@@ -4,18 +4,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.authorization.decorators import require_permission
+from app.modules.authorization.permissions import Permission
 from app.modules.authorization.role_policies import ROLE_POLICIES
 from app.modules.users.models import User
+from app.modules.workspaces.models import Permission as PermissionModel
 from app.modules.workspaces.models import (
-    Permission,
     Role,
     RolePermission,
     Workspace,
     WorkspaceMember,
-
 )
-
-from app.modules.authorization.permissions import Permission
 from app.modules.workspaces.repository import WorkspaceRepository
 
 
@@ -76,7 +74,9 @@ async def create_workspace(
     }
 
     result = await db.execute(
-        select(Permission).where(Permission.permission_key.in_(permission_keys))
+        select(PermissionModel).where(
+            PermissionModel.permission_key.in_(permission_keys)
+        )
     )
 
     permissions_by_key = {

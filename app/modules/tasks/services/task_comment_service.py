@@ -13,7 +13,6 @@ from app.modules.tasks.services.task_history_service import TaskHistoryService
 
 
 class TaskCommentService:
-
     @staticmethod
     @require_permission(Permission.TASKS_READ)
     async def create_comment(

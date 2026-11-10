@@ -1,4 +1,3 @@
-
 import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +14,6 @@ from app.modules.tasks.services import TaskHistoryService
 
 
 class TagService:
-
     @staticmethod
     @require_permission(Permission.TASKS_UPDATE)
     async def assign_tags(
@@ -41,9 +39,7 @@ class TagService:
 
         normalized_names = list(
             dict.fromkeys(
-                name.strip().lower()
-                for name in tag_names
-                if name and name.strip()
+                name.strip().lower() for name in tag_names if name and name.strip()
             )
         )
 
@@ -77,8 +73,7 @@ class TagService:
             )
 
             existing_tag_ids = {
-                assignment.tag_id
-                for assignment in existing_assignments
+                assignment.tag_id for assignment in existing_assignments
             }
 
             if tag.id not in existing_tag_ids:
@@ -100,11 +95,7 @@ class TagService:
                 task_id=task_id,
                 actor_id=user_id,
                 action=TaskHistoryAction.TASK_TAG_ADDED,
-                changes={
-                    "tag_ids": [
-                        str(tag_id) for tag_id in assigned_tag_ids
-                    ]
-                },
+                changes={"tag_ids": [str(tag_id) for tag_id in assigned_tag_ids]},
             )
 
         # 5. Return current task tags.
@@ -147,16 +138,9 @@ class TagService:
             task_id=task_id,
         )
 
-        existing_tag_ids = {
-            assignment.tag_id
-            for assignment in existing_assignments
-        }
+        existing_tag_ids = {assignment.tag_id for assignment in existing_assignments}
 
-        removed_tag_ids = [
-            tag_id
-            for tag_id in tag_ids
-            if tag_id in existing_tag_ids
-        ]
+        removed_tag_ids = [tag_id for tag_id in tag_ids if tag_id in existing_tag_ids]
 
         if not removed_tag_ids:
             return 0
@@ -183,11 +167,7 @@ class TagService:
                 task_id=task_id,
                 actor_id=user_id,
                 action=TaskHistoryAction.TASK_TAG_REMOVED,
-                changes={
-                    "tag_ids": [
-                        str(tag_id) for tag_id in removed_tag_ids
-                    ]
-                },
+                changes={"tag_ids": [str(tag_id) for tag_id in removed_tag_ids]},
             )
 
         return removed_count

@@ -1,13 +1,12 @@
+from collections.abc import Callable
 from functools import wraps
 from inspect import signature
-from typing import Callable, Any
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-
 from app.modules.workspaces.models.models import Permission
 from app.modules.workspaces.security.authorization_service import AuthorizationService
-
 
 
 def require_permission(permission: Permission):

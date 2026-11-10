@@ -1,15 +1,14 @@
-from uuid import UUID
-
 import strawberry
 from graphql import GraphQLError
+from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.authorization import require_authenticated_user
-from app.modules.authorization.permissions import Permission
 from app.modules.users.repository import UserRepository
-from app.modules.workspaces.security.authorization_service import (
-    AuthorizationService,
+from app.modules.workspaces.schemas.membership import (
+    ChangeMemberRolePayload,
+    RemoveMemberPayload,
 )
 from app.modules.workspaces.security.member_service import MemberService
 
@@ -29,7 +28,23 @@ class MembershipMutation:
         claims = require_authenticated_user(info)
         db: AsyncSession = info.context["db"]
 
-        # Step 2: Retrieve the local user.
+        # Step 2: Validate incoming payload using Pydantic.
+        try:
+            payload = ChangeMemberRolePayload(
+                workspace_id=str(workspace_id),
+                user_id=str(user_id),
+                role_key=role_key,
+            )
+        except ValidationError as exc:
+            raise GraphQLError(
+                "Invalid input payload.",
+                extensions={
+                    "code": "VALIDATION_ERROR",
+                    "details": exc.errors(include_input=False),
+                },
+            ) from exc
+
+        # Step 3: Retrieve the local authenticated user.
         current_user = await UserRepository.get_by_cognito_sub(
             db,
             claims["sub"],
@@ -38,36 +53,23 @@ class MembershipMutation:
         if current_user is None:
             raise GraphQLError("User not found.")
 
-        # Step 3: Validate UUIDs.
-        try:
-            workspace_uuid = UUID(str(workspace_id))
-            member_uuid = UUID(str(user_id))
-        except ValueError as exc:
-            raise GraphQLError("Invalid workspace or user ID.") from exc
-
-        # Step 4: Check permission.
-        try:
-            await AuthorizationService.require_permission(
-                db=db,
-                user_id=current_user.id,
-                workspace_id=workspace_uuid,
-                permission_key=Permission.MEMBERS_UPDATE_ROLE,
-            )
-        except PermissionError as exc:
-            raise GraphQLError(str(exc)) from exc
-
-        # Step 5: Change the member's role.
+        # Step 4: Change member role.
         try:
             await MemberService.change_member_role(
                 db=db,
-                workspace_id=workspace_uuid,
-                user_id=member_uuid,
-                role_key=role_key,
+                workspace_id=payload.workspace_id,
+                user_id=current_user.id,
+                target_user_id=payload.user_id,
+                role_key=payload.role_key,
             )
 
             await db.commit()
 
             return True
+
+        except PermissionError as exc:
+            await db.rollback()
+            raise GraphQLError(str(exc)) from exc
 
         except ValueError as exc:
             await db.rollback()
@@ -91,11 +93,26 @@ class MembershipMutation:
         user_id: strawberry.ID,
     ) -> bool:
 
-        # Step 1: Authenticate current user.
+        # Step 1: Authenticate the current user.
         claims = require_authenticated_user(info)
         db: AsyncSession = info.context["db"]
 
-        # Step 2: Retrieve local user.
+        # Step 2: Validate incoming payload using Pydantic.
+        try:
+            payload = RemoveMemberPayload(
+                workspace_id=str(workspace_id),
+                user_id=str(user_id),
+            )
+        except ValidationError as exc:
+            raise GraphQLError(
+                "Invalid input payload.",
+                extensions={
+                    "code": "VALIDATION_ERROR",
+                    "details": exc.errors(include_input=False),
+                },
+            ) from exc
+
+        # Step 3: Retrieve the local authenticated user.
         current_user = await UserRepository.get_by_cognito_sub(
             db,
             claims["sub"],
@@ -104,35 +121,22 @@ class MembershipMutation:
         if current_user is None:
             raise GraphQLError("User not found.")
 
-        # Step 3: Validate UUIDs.
-        try:
-            workspace_uuid = UUID(str(workspace_id))
-            member_uuid = UUID(str(user_id))
-        except ValueError as exc:
-            raise GraphQLError("Invalid workspace or user ID.") from exc
-
-        # Step 4: Check permission.
-        try:
-            await AuthorizationService.require_permission(
-                db=db,
-                user_id=current_user.id,
-                workspace_id=workspace_uuid,
-                permission_key=Permission.MEMBERS_REMOVE,
-            )
-        except PermissionError as exc:
-            raise GraphQLError(str(exc)) from exc
-
-        # Step 5: Remove member.
+        # Step 4: Remove workspace member.
         try:
             await MemberService.remove_member_from_workspace(
                 db=db,
-                workspace_id=workspace_uuid,
-                user_id=member_uuid,
+                workspace_id=payload.workspace_id,
+                user_id=current_user.id,
+                target_user_id=payload.user_id,
             )
 
             await db.commit()
 
             return True
+
+        except PermissionError as exc:
+            await db.rollback()
+            raise GraphQLError(str(exc)) from exc
 
         except ValueError as exc:
             await db.rollback()

@@ -1,4 +1,3 @@
-
 import uuid
 from datetime import datetime
 from uuid import UUID
@@ -13,7 +12,6 @@ from app.modules.tasks.services.task_history_service import TaskHistoryService
 
 
 class TaskService:
-
     @staticmethod
     @require_permission(Permission.TASKS_CREATE)
     async def create_task(
@@ -72,12 +70,9 @@ class TaskService:
                 "description": task.description,
                 "status": task.status.value,
                 "priority": task.priority.value,
-                "due_date": (
-                    task.due_date.isoformat() if task.due_date else None
-                ),
+                "due_date": (task.due_date.isoformat() if task.due_date else None),
                 "parent_task_id": (
-                    str(task.parent_task_id)
-                    if task.parent_task_id else None
+                    str(task.parent_task_id) if task.parent_task_id else None
                 ),
             },
         )
@@ -114,9 +109,7 @@ class TaskService:
         }
 
         update_data = {
-            key: value
-            for key, value in update_data.items()
-            if key in allowed_fields
+            key: value for key, value in update_data.items() if key in allowed_fields
         }
 
         if not update_data:
@@ -124,19 +117,13 @@ class TaskService:
 
         # 3. Validate title.
         if "title" in update_data:
-            if (
-                not update_data["title"]
-                or not update_data["title"].strip()
-            ):
+            if not update_data["title"] or not update_data["title"].strip():
                 raise ValueError("Task title cannot be empty.")
 
             update_data["title"] = update_data["title"].strip()
 
         # 4. Capture existing values before updating.
-        old_values = {
-            field: getattr(task, field)
-            for field in update_data
-        }
+        old_values = {field: getattr(task, field) for field in update_data}
 
         # 5. Update through repository.
         task = await TaskRepository.update(

@@ -7,11 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.authorization import require_authenticated_user
 from app.modules.auth.service import AuthService
-from app.modules.authorization.permissions import Permission
 from app.modules.users.repository import UserRepository
-from app.modules.workspaces.security.authorization_service import (
-    AuthorizationService,
-)
 from app.modules.workspaces.services.invitation_service import (
     InvitationService,
 )
@@ -56,7 +52,6 @@ class InvitationMutation:
 
         if not email:
             raise GraphQLError("Email address is required.")
-
 
         try:
             invitation, raw_token = await InvitationService.create_invitation(
@@ -172,15 +167,12 @@ class InvitationMutation:
         except ValueError as exc:
             raise GraphQLError("Invalid workspace or invitation ID.") from exc
 
-        
-
         invitation = await InvitationService.revoke_invitation(
-        db=db,
-        invitation_id=invitation_id,
-        workspace_id=workspace_id,
-        user_id=user.id,
-    )
-        
+            db=db,
+            invitation_id=invitation_id,
+            workspace_id=workspace_id,
+            user_id=user.id,
+        )
 
         await db.commit()
         await db.refresh(invitation)
@@ -191,8 +183,6 @@ class InvitationMutation:
             status=invitation.status.value,
             expires_at=invitation.expires_at,
         )
-
-        
 
     # Decline invitation
     @strawberry.mutation
@@ -272,8 +262,6 @@ class InvitationMutation:
                 invitation_id = UUID(str(input.invitation_id))
             except ValueError as exc:
                 raise ValueError("Invalid workspace or invitation ID.") from exc
-
-           
 
             invitation, raw_token = await InvitationService.resend_invitation(
                 db=db,

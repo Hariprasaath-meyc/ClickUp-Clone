@@ -8,10 +8,10 @@ from .tag_types import (
 )
 
 __all__ = [
-"AssignTagsInput",
-"RemoveTagsInput",
-"RemoveTagsResult",
-"TagResult",
-"TagType",
-"TaskTagType",
+    "AssignTagsInput",
+    "RemoveTagsInput",
+    "RemoveTagsResult",
+    "TagResult",
+    "TagType",
+    "TaskTagType",
 ]

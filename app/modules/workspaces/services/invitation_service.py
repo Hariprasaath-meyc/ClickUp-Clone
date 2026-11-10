@@ -284,3 +284,29 @@ class InvitationService:
         )
 
         return invitation, raw_token
+
+    @staticmethod
+    @require_permission(Permission.MEMBERS_READ)
+    async def get_workspace_invitations(
+        db: AsyncSession,
+        workspace_id: UUID,
+        user_id: UUID,
+    ) -> list[WorkspaceInvitation]:
+
+        return await InvitationRepository.get_workspace_invitations(
+            db=db,
+            workspace_id=workspace_id,
+        )
+
+    @staticmethod
+    @require_permission(Permission.MEMBERS_READ)
+    async def get_pending_invitations(
+        db: AsyncSession,
+        workspace_id: UUID,
+        user_id: UUID,
+    ) -> list[WorkspaceInvitation]:
+
+        return await InvitationRepository.get_pending_invitations(
+            db=db,
+            workspace_id=workspace_id,
+        )
