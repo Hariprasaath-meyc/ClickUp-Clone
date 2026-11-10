@@ -213,6 +213,532 @@ ClickUp-Clone/
 
 Amazon Cognito is the identity provider. The backend verifies access tokens using the User Pool's JWKS public keys. Token verification checks the signature, issuer, expiry, required claims, `token_use=access`, and configured Cognito app-client ID.
 
+### Authentication flow (high-level)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant FE as Frontend
+    participant BE as FastAPI + GraphQL
+    participant Auth as Authentication Service
+    participant Cognito as Amazon Cognito
+    participant DB as PostgreSQL
+
+    Note over User,DB: 1. Signup
+    User->>FE: Submit registration details
+    FE->>BE: Signup request
+    BE->>Auth: Process signup
+    Auth->>Cognito: Register user
+    Cognito-->>Auth: Confirmation required
+    Auth-->>BE: Signup result
+    BE-->>FE: Confirmation required
+
+    Note over User,DB: 2. Email Confirmation
+    User->>FE: Submit confirmation code
+    FE->>BE: Confirm signup
+    BE->>Auth: Verify confirmation
+    Auth->>Cognito: Confirm user
+    Cognito-->>Auth: Confirmation successful
+    Auth->>DB: Create local user record
+    DB-->>Auth: User created
+    Auth-->>BE: Confirmation result
+    BE-->>FE: Account confirmed
+
+    Note over User,DB: 3. Login
+    User->>FE: Submit credentials
+    FE->>BE: Login request
+    BE->>Auth: Authenticate user
+    Auth->>Cognito: Verify credentials
+    Cognito-->>Auth: Authentication tokens
+    Auth-->>BE: Login result
+    BE-->>FE: Return tokens
+    FE-->>User: Login successful
+
+    Note over User,DB: 4. Protected Request
+    FE->>BE: Request with access token
+    BE->>Auth: Validate access token
+    Auth->>Cognito: Verify token using JWKS
+    Cognito-->>Auth: Public signing keys
+    Auth-->>BE: Authentication result
+
+    alt Authenticated
+        BE->>DB: Execute application operation
+        DB-->>BE: Return data
+        BE-->>FE: Successful response
+    else Not authenticated
+        BE-->>FE: Authentication error
+    end
+```
+
+### Workspace creation flow (high-level)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant FE as Frontend
+    participant BE as FastAPI + GraphQL
+    participant Auth as Authentication
+    participant WS as Workspace Service
+    participant DB as PostgreSQL
+
+    User->>FE: Enter workspace details
+    FE->>BE: Create workspace request + access token
+    BE->>Auth: Validate access token
+    Auth-->>BE: Authenticated user
+    BE->>WS: Create workspace
+    WS->>WS: Validate workspace payload
+    WS->>DB: Create workspace
+    DB-->>WS: Workspace created
+    WS->>DB: Create OWNER, ADMIN and MEMBER roles
+    WS->>DB: Assign OWNER role to creator
+    WS->>DB: Create default role permissions
+    DB-->>WS: Workspace setup completed
+    WS-->>BE: Workspace creation result
+    BE-->>FE: Workspace created successfully
+    FE-->>User: Display new workspace
+```
+
+
+### Workspace management flow (high-level)
+
+This flow covers viewing, updating, and soft-deleting an existing workspace. Each operation requires authentication and the relevant workspace permission.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant FE as Frontend
+    participant BE as FastAPI + GraphQL
+    participant Auth as Authentication / RBAC
+    participant WS as Workspace Service
+    participant DB as PostgreSQL
+
+    Note over User,DB: 1. View Workspace
+    User->>FE: Open workspace
+    FE->>BE: Request workspace details
+    BE->>Auth: Authenticate user and check workspace.read
+    Auth-->>BE: Access granted
+    BE->>WS: Get workspace
+    WS->>DB: Retrieve workspace
+    DB-->>WS: Workspace details
+    WS-->>BE: Workspace data
+    BE-->>FE: Workspace response
+    FE-->>User: Display workspace
+
+    Note over User,DB: 2. Update Workspace
+    User->>FE: Edit workspace details
+    FE->>BE: Submit update request
+    BE->>Auth: Authenticate user and check workspace.update
+    Auth-->>BE: Access granted
+    BE->>WS: Update workspace
+    WS->>DB: Update workspace record
+    DB-->>WS: Updated workspace
+    WS-->>BE: Update result
+    BE-->>FE: Updated workspace response
+    FE-->>User: Display updated workspace
+
+    Note over User,DB: 3. Delete Workspace
+    User->>FE: Confirm workspace deletion
+    FE->>BE: Submit delete request
+    BE->>Auth: Authenticate user and check workspace.delete
+    Auth-->>BE: Access granted
+    BE->>WS: Delete workspace
+    WS->>DB: Mark workspace as deleted
+    DB-->>WS: Deletion result
+    WS-->>BE: Delete result
+    BE-->>FE: Success response
+    FE-->>User: Workspace deleted
+
+    Note over BE,Auth: If authentication or permission checks fail, the backend returns an error and the operation is not executed.
+```
+
+
+### Workspace member management flow (high-level)
+
+This flow covers viewing workspace members, updating a member's role, and removing a member. Each operation requires authentication and the relevant workspace permission. Owner membership is protected from ordinary role-change and removal operations.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Workspace Owner / Admin
+    participant FE as Frontend
+    participant BE as FastAPI + GraphQL
+    participant Auth as Authentication / RBAC
+    participant MS as Workspace Member Service
+    participant DB as PostgreSQL
+
+    Note over User,DB: 1. View Workspace Members
+    User->>FE: Open workspace members
+    FE->>BE: Request member list
+    BE->>Auth: Authenticate and check members.read
+    Auth-->>BE: Access granted
+    BE->>MS: Get workspace members
+    MS->>DB: Retrieve workspace memberships
+    DB-->>MS: Member details and roles
+    MS-->>BE: Member list
+    BE-->>FE: Members response
+    FE-->>User: Display workspace members
+
+    Note over User,DB: 2. Update Member Role
+    User->>FE: Select member and new role
+    FE->>BE: Submit role update
+    BE->>Auth: Authenticate and check members.update_role
+    Auth-->>BE: Access granted
+    BE->>MS: Update member role
+    MS->>DB: Validate membership and role
+    DB-->>MS: Validation result
+
+    alt Valid role update
+        MS->>DB: Update member role
+        DB-->>MS: Role updated
+        MS-->>BE: Update successful
+        BE-->>FE: Success response
+        FE-->>User: Display updated role
+    else Invalid operation
+        MS-->>BE: Reject role update
+        BE-->>FE: Error response
+        FE-->>User: Display error
+    end
+
+    Note over User,DB: 3. Remove Workspace Member
+    User->>FE: Select member and remove
+    FE->>BE: Submit member removal
+    BE->>Auth: Authenticate and check members.remove
+    Auth-->>BE: Access granted
+    BE->>MS: Remove workspace member
+    MS->>DB: Validate membership and owner restrictions
+    DB-->>MS: Validation result
+
+    alt Removal allowed
+        MS->>DB: Remove workspace membership
+        DB-->>MS: Membership removed
+        MS-->>BE: Removal successful
+        BE-->>FE: Success response
+        FE-->>User: Member removed
+    else Removal not allowed
+        MS-->>BE: Reject removal
+        BE-->>FE: Error response
+        FE-->>User: Display error
+    end
+
+    Note over BE,Auth: Failed authentication or permission checks stop the operation and return an error.
+```
+
+
+### Task management flow (high-level)
+
+This flow covers task creation, retrieval, updates, soft deletion, and restoration. Each operation requires authentication and the relevant workspace permission.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Workspace Member
+    participant FE as Frontend
+    participant BE as FastAPI + GraphQL
+    participant Auth as Authentication / RBAC
+    participant TS as Task Service
+    participant DB as PostgreSQL
+
+    Note over User,DB: 1. Create Task
+    User->>FE: Enter task details
+    FE->>BE: Submit create task request
+    BE->>Auth: Authenticate and check tasks.create
+    Auth-->>BE: Access granted
+    BE->>TS: Create task
+    TS->>TS: Validate task details and workspace
+    TS->>DB: Save new task
+    DB-->>TS: Task created
+    TS-->>BE: Task creation result
+    BE-->>FE: Task response
+    FE-->>User: Display created task
+
+    Note over User,DB: 2. View Tasks
+    User->>FE: Open workspace tasks
+    FE->>BE: Request tasks
+    BE->>Auth: Authenticate and check tasks.read
+    Auth-->>BE: Access granted
+    BE->>TS: Get workspace tasks
+    TS->>DB: Retrieve tasks
+    DB-->>TS: Task records
+    TS-->>BE: Task list
+    BE-->>FE: Tasks response
+    FE-->>User: Display tasks
+
+    Note over User,DB: 3. Update Task
+    User->>FE: Edit task details, status or priority
+    FE->>BE: Submit task update
+    BE->>Auth: Authenticate and check tasks.update
+    Auth-->>BE: Access granted
+    BE->>TS: Update task
+    TS->>TS: Validate task and update payload
+    TS->>DB: Update task record
+    DB-->>TS: Updated task
+    TS-->>BE: Update result
+    BE-->>FE: Updated task response
+    FE-->>User: Display updated task
+
+    Note over User,DB: 4. Soft Delete Task
+    User->>FE: Request task deletion
+    FE->>BE: Submit delete request
+    BE->>Auth: Authenticate and check tasks.delete
+    Auth-->>BE: Access granted
+    BE->>TS: Delete task
+    TS->>DB: Mark task as deleted
+    DB-->>TS: Deletion result
+    TS-->>BE: Delete result
+    BE-->>FE: Success response
+    FE-->>User: Task deleted
+
+    Note over User,DB: 5. Restore Task
+    User->>FE: Request task restoration
+    FE->>BE: Submit restore request
+    BE->>Auth: Authenticate and check restore permission
+    Auth-->>BE: Access granted
+    BE->>TS: Restore task
+    TS->>DB: Clear task deletion marker
+    DB-->>TS: Task restored
+    TS-->>BE: Restore result
+    BE-->>FE: Success response
+    FE-->>User: Display restored task
+
+    Note over BE,Auth: Failed authentication or permission checks stop the operation and return an error.
+```
+
+
+### Task assignment flow (high-level)
+
+This flow covers assigning multiple workspace members to a task, viewing assignees, and removing an assignee. The selected members must belong to the same workspace as the task.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Workspace Member
+    participant FE as Frontend
+    participant BE as FastAPI + GraphQL
+    participant Auth as Authentication / RBAC
+    participant AS as Task Assignment Service
+    participant DB as PostgreSQL
+
+    Note over User,DB: 1. Assign Members to a Task
+    User->>FE: Select task and assignees
+    FE->>BE: Submit assignment request
+    BE->>Auth: Authenticate and check tasks.assign
+    Auth-->>BE: Access granted
+    BE->>AS: Assign members to task
+    AS->>DB: Retrieve task and workspace
+    DB-->>AS: Task and workspace details
+    AS->>DB: Validate selected workspace members
+    DB-->>AS: Membership validation result
+
+    alt All members belong to the workspace
+        AS->>DB: Save task assignments
+        DB-->>AS: Assignments saved
+        AS-->>BE: Assignment successful
+        BE-->>FE: Success response
+        FE-->>User: Display assigned members
+    else Invalid workspace membership
+        AS-->>BE: Reject assignment
+        BE-->>FE: Error response
+        FE-->>User: Display assignment error
+    end
+
+    Note over User,DB: 2. View Task Assignees
+    User->>FE: Open task details
+    FE->>BE: Request task assignees
+    BE->>Auth: Authenticate and check task access
+    Auth-->>BE: Access granted
+    BE->>AS: Get task assignees
+    AS->>DB: Retrieve assigned members
+    DB-->>AS: Assignee details
+    AS-->>BE: Assignee list
+    BE-->>FE: Assignees response
+    FE-->>User: Display assigned members
+
+    Note over User,DB: 3. Remove Task Assignee
+    User->>FE: Remove selected assignee
+    FE->>BE: Submit removal request
+    BE->>Auth: Authenticate and check tasks.assign
+    Auth-->>BE: Access granted
+    BE->>AS: Remove task assignee
+    AS->>DB: Validate task assignment
+    DB-->>AS: Assignment details
+
+    alt Assignment exists
+        AS->>DB: Delete task-assignee association
+        DB-->>AS: Assignment removed
+        AS-->>BE: Removal successful
+        BE-->>FE: Success response
+        FE-->>User: Update assignee list
+    else Assignment not found
+        AS-->>BE: Reject removal
+        BE-->>FE: Error response
+        FE-->>User: Display error
+    end
+```
+
+
+### Task collaboration flow (high-level)
+
+This flow groups task comments, workspace-scoped tags, and subtasks. Tags are reusable across multiple tasks within the same workspace; a task and its tag must belong to that workspace. Subtasks support one nesting level.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Workspace Member
+    participant FE as Frontend
+    participant BE as FastAPI + GraphQL
+    participant Auth as Authentication / RBAC
+    participant CS as Collaboration Services
+    participant DB as PostgreSQL
+
+    Note over User,DB: 1. Task Comments
+    User->>FE: Add comment to task
+    FE->>BE: Submit comment request
+    BE->>Auth: Authenticate and check permission
+    Auth-->>BE: Access granted
+    BE->>CS: Create comment
+    CS->>DB: Validate task and save comment
+    DB-->>CS: Comment created
+    CS-->>BE: Comment result
+    BE-->>FE: Comment response
+    FE-->>User: Display comment
+
+    User->>FE: View task comments
+    FE->>BE: Request comments
+    BE->>CS: Retrieve task comments
+    CS->>DB: Fetch comments
+    DB-->>CS: Comment records
+    CS-->>BE: Comments list
+    BE-->>FE: Comments response
+    FE-->>User: Display comments
+
+    User->>FE: Update or delete own comment
+    FE->>BE: Submit comment modification
+    BE->>Auth: Authenticate user
+    Auth-->>BE: Access granted
+    BE->>CS: Modify comment
+    CS->>DB: Validate comment ownership
+    DB-->>CS: Ownership validation
+
+    alt User owns the comment
+        CS->>DB: Update or soft-delete comment
+        DB-->>CS: Modification successful
+        CS-->>BE: Updated comment result
+        BE-->>FE: Success response
+        FE-->>User: Display updated comments
+    else User does not own the comment
+        CS-->>BE: Reject modification
+        BE-->>FE: Authorization error
+        BE-->>FE: Error response
+        FE-->>User: Display error
+    end
+
+    Note over User,DB: 2. Workspace Tags
+    User->>FE: Create a tag
+    FE->>BE: Submit tag details
+    BE->>Auth: Authenticate and check tag permission
+    Auth-->>BE: Access granted
+    BE->>CS: Create workspace tag
+    CS->>DB: Save tag with workspace ID
+    DB-->>CS: Tag created
+    CS-->>BE: Tag result
+    BE-->>FE: Tag response
+    FE-->>User: Display created tag
+
+    User->>FE: Attach existing tag to task
+    FE->>BE: Submit task-tag association
+    BE->>Auth: Authenticate and check task permission
+    Auth-->>BE: Access granted
+    BE->>CS: Associate tag with task
+    CS->>DB: Validate task and tag workspace IDs
+    DB-->>CS: Validation result
+
+    alt Task and tag belong to same workspace
+        CS->>DB: Save task-tag association
+        DB-->>CS: Association created
+        CS-->>BE: Association successful
+        BE-->>FE: Success response
+        FE-->>User: Display task tag
+    else Workspace mismatch
+        CS-->>BE: Reject association
+        BE-->>FE: Error response
+        FE-->>User: Display error
+    end
+
+    Note over User,DB: 3. Subtask Management
+    User->>FE: Create subtask
+    FE->>BE: Submit subtask details
+    BE->>Auth: Authenticate and check tasks.create
+    Auth-->>BE: Access granted
+    BE->>CS: Create subtask
+    CS->>DB: Validate parent task, workspace and nesting level
+    DB-->>CS: Validation result
+
+    alt Valid parent task and nesting level
+        CS->>DB: Save subtask with parent task ID
+        DB-->>CS: Subtask created
+        CS-->>BE: Subtask result
+        BE-->>FE: Subtask response
+        FE-->>User: Display subtask
+    else Invalid parent or nesting level
+        CS-->>BE: Reject subtask creation
+        BE-->>FE: Error response
+        FE-->>User: Display error
+    end
+```
+
+
+### Task history and audit tracking flow (high-level)
+
+This flow shows how supported task activities are recorded as new, append-only history entries and how a task's activity timeline is retrieved.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Workspace Member
+    participant FE as Frontend
+    participant BE as FastAPI + GraphQL
+    participant Auth as Authentication / RBAC
+    participant TS as Task Services
+    participant HS as Task History Service
+    participant DB as PostgreSQL
+
+    Note over User,DB: 1. Task Activity Occurs
+    User->>FE: Perform task operation
+    FE->>BE: Submit task request
+    BE->>Auth: Authenticate and check permission
+    Auth-->>BE: Access granted
+    BE->>TS: Execute task operation
+    TS->>DB: Validate and update task data
+    DB-->>TS: Operation successful
+
+    Note over TS,DB: 2. Record Task Activity
+    TS->>HS: Record activity details
+    HS->>HS: Prepare activity record
+    HS->>DB: Insert new task history record
+    DB-->>HS: History record saved
+    HS-->>TS: History recorded
+    TS-->>BE: Task operation result
+    BE-->>FE: Success response
+    FE-->>User: Display updated task
+
+    Note over User,DB: 3. Retrieve Task History
+    User->>FE: Open task activity history
+    FE->>BE: Request task history
+    BE->>Auth: Authenticate and check task access
+    Auth-->>BE: Access granted
+    BE->>HS: Retrieve task history
+    HS->>DB: Fetch history records for task
+    DB-->>HS: History records
+    HS-->>BE: Ordered activity history
+    BE-->>FE: History response
+    FE-->>User: Display task activity timeline
+
+    Note over HS,DB: History records are append-only and are not modified or overwritten.
+```
+
 For authenticated GraphQL operations, send the Cognito **access token**:
 
 ```http
