@@ -689,6 +689,56 @@ sequenceDiagram
     end
 ```
 
+
+### Task history and audit tracking flow (high-level)
+
+This flow shows how supported task activities are recorded as new, append-only history entries and how a task's activity timeline is retrieved.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Workspace Member
+    participant FE as Frontend
+    participant BE as FastAPI + GraphQL
+    participant Auth as Authentication / RBAC
+    participant TS as Task Services
+    participant HS as Task History Service
+    participant DB as PostgreSQL
+
+    Note over User,DB: 1. Task Activity Occurs
+    User->>FE: Perform task operation
+    FE->>BE: Submit task request
+    BE->>Auth: Authenticate and check permission
+    Auth-->>BE: Access granted
+    BE->>TS: Execute task operation
+    TS->>DB: Validate and update task data
+    DB-->>TS: Operation successful
+
+    Note over TS,DB: 2. Record Task Activity
+    TS->>HS: Record activity details
+    HS->>HS: Prepare activity record
+    HS->>DB: Insert new task history record
+    DB-->>HS: History record saved
+    HS-->>TS: History recorded
+    TS-->>BE: Task operation result
+    BE-->>FE: Success response
+    FE-->>User: Display updated task
+
+    Note over User,DB: 3. Retrieve Task History
+    User->>FE: Open task activity history
+    FE->>BE: Request task history
+    BE->>Auth: Authenticate and check task access
+    Auth-->>BE: Access granted
+    BE->>HS: Retrieve task history
+    HS->>DB: Fetch history records for task
+    DB-->>HS: History records
+    HS-->>BE: Ordered activity history
+    BE-->>FE: History response
+    FE-->>User: Display task activity timeline
+
+    Note over HS,DB: History records are append-only and are not modified or overwritten.
+```
+
 For authenticated GraphQL operations, send the Cognito **access token**:
 
 ```http
