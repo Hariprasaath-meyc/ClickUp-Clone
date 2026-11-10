@@ -7,11 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.authorization import require_authenticated_user
 from app.modules.auth.service import AuthService
-from app.modules.authorization.permissions import Permission
 from app.modules.users.repository import UserRepository
-from app.modules.workspaces.security.authorization_service import (
-    AuthorizationService,
-)
 from app.modules.workspaces.services.invitation_service import (
     InvitationService,
 )
@@ -58,22 +54,12 @@ class InvitationMutation:
             raise GraphQLError("Email address is required.")
 
         try:
-            await AuthorizationService.require_permission(
-                db=db,
-                user_id=user.id,
-                workspace_id=workspace_id,
-                permission_key=Permission.MEMBERS_INVITE,
-            )
-        except PermissionError as exc:
-            raise GraphQLError(str(exc)) from exc
-
-        try:
             invitation, raw_token = await InvitationService.create_invitation(
                 db=db,
                 workspace_id=workspace_id,
                 email=email,
                 role_key=input.role_key,
-                invited_by=user.id,
+                user_id=user.id,
             )
 
             await db.commit()
@@ -181,42 +167,22 @@ class InvitationMutation:
         except ValueError as exc:
             raise GraphQLError("Invalid workspace or invitation ID.") from exc
 
-        try:
-            await AuthorizationService.require_permission(
-                db=db,
-                user_id=user.id,
-                workspace_id=workspace_id,
-                permission_key=Permission.MEMBERS_INVITE,
-            )
+        invitation = await InvitationService.revoke_invitation(
+            db=db,
+            invitation_id=invitation_id,
+            workspace_id=workspace_id,
+            user_id=user.id,
+        )
 
-            invitation = await InvitationService.revoke_invitation(
-                db=db,
-                invitation_id=invitation_id,
-                workspace_id=workspace_id,
-                invited_by=user.id,
-            )
+        await db.commit()
+        await db.refresh(invitation)
 
-            await db.commit()
-            await db.refresh(invitation)
-
-            return InvitationResult(
-                id=strawberry.ID(str(invitation.id)),
-                email=invitation.email,
-                status=invitation.status.value,
-                expires_at=invitation.expires_at,
-            )
-
-        except PermissionError as exc:
-            await db.rollback()
-            raise GraphQLError(str(exc)) from exc
-
-        except ValueError as exc:
-            await db.rollback()
-            raise GraphQLError(str(exc)) from exc
-
-        except Exception:
-            await db.rollback()
-            raise
+        return InvitationResult(
+            id=strawberry.ID(str(invitation.id)),
+            email=invitation.email,
+            status=invitation.status.value,
+            expires_at=invitation.expires_at,
+        )
 
     # Decline invitation
     @strawberry.mutation
@@ -297,18 +263,11 @@ class InvitationMutation:
             except ValueError as exc:
                 raise ValueError("Invalid workspace or invitation ID.") from exc
 
-            await AuthorizationService.require_permission(
-                db=db,
-                user_id=user.id,
-                workspace_id=workspace_id,
-                permission_key=Permission.MEMBERS_INVITE,
-            )
-
             invitation, raw_token = await InvitationService.resend_invitation(
                 db=db,
                 invitation_id=invitation_id,
                 workspace_id=workspace_id,
-                invited_by=user.id,
+                user_id=user.id,
             )
 
             await db.commit()
@@ -321,7 +280,9 @@ class InvitationMutation:
                 expires_at=invitation.expires_at,
                 token=raw_token,
             )
-
+        except PermissionError as exc:
+            await db.rollback()
+            raise GraphQLError(str(exc)) from exc
         except ValueError as exc:
             await db.rollback()
             raise GraphQLError(str(exc)) from exc

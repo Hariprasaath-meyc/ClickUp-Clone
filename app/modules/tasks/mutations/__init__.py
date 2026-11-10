@@ -4,6 +4,6 @@ from app.modules.tasks.mutations.task_comment_mutation import (
 from app.modules.tasks.mutations.task_mutation import TaskMutation
 
 __all__ = [
-"TaskCommentMutation",
-"TaskMutation",
+    "TaskCommentMutation",
+    "TaskMutation",
 ]

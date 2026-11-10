@@ -3,10 +3,12 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.authorization.decorators import require_permission
+from app.modules.authorization.permissions import Permission
 from app.modules.authorization.role_policies import ROLE_POLICIES
 from app.modules.users.models import User
+from app.modules.workspaces.models import Permission as PermissionModel
 from app.modules.workspaces.models import (
-    Permission,
     Role,
     RolePermission,
     Workspace,
@@ -72,7 +74,9 @@ async def create_workspace(
     }
 
     result = await db.execute(
-        select(Permission).where(Permission.permission_key.in_(permission_keys))
+        select(PermissionModel).where(
+            PermissionModel.permission_key.in_(permission_keys)
+        )
     )
 
     permissions_by_key = {
@@ -116,6 +120,7 @@ async def create_workspace(
     return workspace
 
 
+@require_permission(Permission.WORKSPACE_DELETE)
 async def delete_workspace(
     db: AsyncSession,
     *,
@@ -123,7 +128,7 @@ async def delete_workspace(
     user_id: UUID,
 ) -> Workspace:
 
-    # 1. Retrieve the workspace, including deleted workspaces
+    # 1. Retrieve the workspace
     result = await db.execute(
         select(Workspace).where(
             Workspace.id == workspace_id,
@@ -139,29 +144,7 @@ async def delete_workspace(
     if workspace.deleted_at is not None:
         raise ValueError("This workspace has already been deleted.")
 
-    # 3. Retrieve the user's role in this workspace
-    result = await db.execute(
-        select(Role.role_key)
-        .join(
-            WorkspaceMember,
-            WorkspaceMember.role_id == Role.id,
-        )
-        .where(
-            WorkspaceMember.workspace_id == workspace_id,
-            WorkspaceMember.user_id == user_id,
-        )
-    )
-
-    role_key = result.scalar_one_or_none()
-
-    if role_key is None:
-        raise ValueError("You are not a member of this workspace.")
-
-    # 3. Verify workspace ownership
-    if role_key != "OWNER":
-        raise ValueError("Only the workspace owner can delete the workspace.")
-
-    # 4. Perform soft deletion
+    # 3. Perform soft deletion
     return await WorkspaceRepository.soft_delete(
         db=db,
         workspace=workspace,

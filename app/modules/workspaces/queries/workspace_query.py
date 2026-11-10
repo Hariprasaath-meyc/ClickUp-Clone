@@ -1,12 +1,15 @@
-from uuid import UUID
-
 import strawberry
 from graphql import GraphQLError
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.authorization import require_authenticated_user
 from app.modules.users.repository import UserRepository
 from app.modules.workspaces.repository import WorkspaceRepository
+from app.modules.workspaces.schemas.workspace import (
+    WorkspaceIdQueryPayload,
+    WorkspaceSlugQueryPayload,
+)
 from app.modules.workspaces.security.authorization_service import (
     AuthorizationService,
 )
@@ -65,6 +68,15 @@ class WorkspaceQuery:
         claims = require_authenticated_user(info)
         db: AsyncSession = info.context["db"]
 
+        # 1. Validate payload
+        try:
+            payload = WorkspaceIdQueryPayload(
+                id=str(id),
+            )
+        except ValidationError as exc:
+            raise GraphQLError(str(exc)) from exc
+
+        # 2. Resolve local user
         user = await UserRepository.get_by_cognito_sub(
             db,
             claims["sub"],
@@ -73,19 +85,16 @@ class WorkspaceQuery:
         if user is None:
             raise GraphQLError("User not found. Please log in again.")
 
-        try:
-            workspace_id = UUID(str(id))
-        except ValueError as exc:
-            raise GraphQLError("Invalid workspace ID.") from exc
-
+        # 3. Retrieve workspace
         workspace = await WorkspaceRepository.get_by_id(
             db=db,
-            workspace_id=workspace_id,
+            workspace_id=payload.id,
         )
 
         if workspace is None:
             raise GraphQLError("Workspace not found.")
 
+        # 4. Check authorization
         try:
             await AuthorizationService.require_permission(
                 db=db,
@@ -96,6 +105,7 @@ class WorkspaceQuery:
         except PermissionError as exc:
             raise GraphQLError(str(exc)) from exc
 
+        # 5. Construct response
         return WorkspaceType(
             id=strawberry.ID(str(workspace.id)),
             name=workspace.name,
@@ -117,6 +127,15 @@ class WorkspaceQuery:
         claims = require_authenticated_user(info)
         db: AsyncSession = info.context["db"]
 
+        # 1. Validate and normalize payload
+        try:
+            payload = WorkspaceSlugQueryPayload(
+                slug=slug,
+            )
+        except ValidationError as exc:
+            raise GraphQLError(str(exc)) from exc
+
+        # 2. Resolve local user
         user = await UserRepository.get_by_cognito_sub(
             db,
             claims["sub"],
@@ -125,18 +144,15 @@ class WorkspaceQuery:
         if user is None:
             raise GraphQLError("User not found. Please log in again.")
 
-        normalized_slug = slug.strip().lower()
-
-        if not normalized_slug or len(normalized_slug) > 100:
-            raise GraphQLError("Slug must be between 1 and 100 characters.")
-
+        # 3. Check slug availability
         is_taken = await WorkspaceRepository.is_slug_taken(
             db=db,
-            slug=normalized_slug,
+            slug=payload.slug,
         )
 
+        # 4. Construct response
         return SlugAvailabilityType(
-            slug=normalized_slug,
+            slug=payload.slug,
             available=not is_taken,
         )
 
@@ -151,6 +167,15 @@ class WorkspaceQuery:
         claims = require_authenticated_user(info)
         db: AsyncSession = info.context["db"]
 
+        # 1. Validate and normalize payload
+        try:
+            payload = WorkspaceSlugQueryPayload(
+                slug=slug,
+            )
+        except ValidationError as exc:
+            raise GraphQLError(str(exc)) from exc
+
+        # 2. Resolve local user
         user = await UserRepository.get_by_cognito_sub(
             db,
             claims["sub"],
@@ -159,19 +184,16 @@ class WorkspaceQuery:
         if user is None:
             raise GraphQLError("User not found. Please log in again.")
 
-        normalized_slug = slug.strip().lower()
-
-        if not normalized_slug or len(normalized_slug) > 100:
-            raise GraphQLError("Slug must be between 1 and 100 characters.")
-
+        # 3. Retrieve workspace
         workspace = await WorkspaceRepository.get_by_slug(
             db=db,
-            slug=normalized_slug,
+            slug=payload.slug,
         )
 
         if workspace is None:
             raise GraphQLError("Workspace not found.")
 
+        # 4. Check authorization
         try:
             await AuthorizationService.require_permission(
                 db=db,
@@ -182,6 +204,7 @@ class WorkspaceQuery:
         except PermissionError as exc:
             raise GraphQLError(str(exc)) from exc
 
+        # 5. Construct response
         return WorkspaceType(
             id=strawberry.ID(str(workspace.id)),
             name=workspace.name,

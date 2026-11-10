@@ -1,8 +1,8 @@
-# ClickUp Clone
+# ClickUp Clone — Backend
 
-A backend implementation of a workspace-based project and task management platform, built with **FastAPI, Strawberry GraphQL, PostgreSQL, and SQLAlchemy's async ORM**. Authentication is delegated to **Amazon Cognito**, while application users, workspaces, memberships, roles, permissions, tasks, and activity records are persisted in PostgreSQL.
+A workspace-based project and task management backend built with **FastAPI, Strawberry GraphQL, PostgreSQL, and SQLAlchemy's async ORM**. Amazon Cognito handles user authentication, while PostgreSQL stores application users, workspaces, memberships, roles, permissions, tasks, tags, comments, invitations, and activity history.
 
-> This repository currently contains the backend only. A frontend, Docker Compose setup, and deployment manifests are not present in the inspected repository tree.
+> **Project scope:** This repository contains the backend API. The current repository does not include a frontend, Docker Compose configuration, automated test suite, or deployment manifests.
 
 ## Contents
 
@@ -11,126 +11,130 @@ A backend implementation of a workspace-based project and task management platfo
 - [Technology stack](#technology-stack)
 - [Architecture](#architecture)
 - [Project structure](#project-structure)
-- [Authentication and request lifecycle](#authentication-and-request-lifecycle)
-- [Authorization model](#authorization-model)
+- [Authentication and authorization](#authentication-and-authorization)
 - [Domain model](#domain-model)
 - [Getting started](#getting-started)
 - [Database migrations](#database-migrations)
-- [Running the application](#running-the-application)
 - [GraphQL API](#graphql-api)
-- [Configuration reference](#configuration-reference)
-- [Implementation notes](#implementation-notes)
+- [Configuration](#configuration)
+- [Operational notes](#operational-notes)
+- [License](#license)
 
 ## Overview
 
-ClickUp Clone organizes work around workspaces. A workspace contains members, workspace-scoped roles and permissions, tasks, tags, comments, and task activity history. Users authenticate through Cognito; the backend verifies Cognito access tokens and maps the authenticated Cognito identity to a local user record.
+The application organizes collaboration around workspaces. A workspace has members and workspace-scoped roles; members collaborate on tasks, assign work, add tags and comments, and review task activity.
 
-The codebase follows a **modular monolith** structure: domain capabilities are grouped into modules inside one FastAPI application, while shared infrastructure such as configuration, database sessions, middleware, and GraphQL schema composition lives under `app/core`, `app/db`, and `app/graphql`.
+The codebase is structured as a **modular monolith**. Business capabilities are grouped under `app/modules`, while shared application infrastructure—configuration, database sessions, logging, middleware, and GraphQL schema composition—is kept in dedicated packages.
 
 ## Features
 
 ### Authentication and user profiles
 
-- Sign up with email and password through Amazon Cognito.
-- Confirm an account with the Cognito confirmation code and request a replacement code.
-- Log in and receive Cognito access, ID, and refresh tokens.
-- Refresh a session and log out through Cognito global sign-out.
-- Verify access-token signature and claims using Cognito's JWKS endpoint.
-- Require a verified Cognito email before the local user is created during login.
-- Create or retrieve the local user using the Cognito subject (`sub`).
-- Retrieve the authenticated user's profile and update profile details.
+- Sign up, confirm registration, and resend Cognito confirmation codes.
+- Authenticate through Amazon Cognito and handle token refresh and sign-out flows.
+- Verify Cognito access-token signatures using the User Pool JWKS endpoint.
+- Validate token issuer, expiry, token use, and app-client ID.
+- Map the Cognito subject (`sub`) to a local application user.
+- Reject tokens issued before a user's `tokens_valid_after` timestamp.
+- Read the authenticated user's information and update profile data.
 
 ### Workspaces and membership
 
-- Create workspaces with a unique slug.
-- Create the predefined `OWNER`, `ADMIN`, and `MEMBER` roles when a workspace is created.
-- Assign the creator the `OWNER` role.
+- Create workspaces with globally unique slugs.
+- Provision the `OWNER`, `ADMIN`, and `MEMBER` roles when a workspace is created.
+- Assign the workspace creator the `OWNER` role.
 - Read and update workspace information.
-- Invite users to a workspace with a selected non-owner role.
-- Accept, decline, revoke, and resend workspace invitations.
-- View workspace membership, change a member's role, and remove a member.
-- Prevent changing or removing the workspace owner through the member-role operations.
+- Invite users by email with a selected role.
+- Accept, decline, revoke, and resend invitations.
+- Read workspace members, update member roles, and remove members.
+- Protect owner membership from ordinary member role-change and removal operations.
+- Soft-delete workspaces.
 
-Invitations use a generated token; the stored invitation record contains a token hash and an expiry timestamp. The invitation service sets a seven-day expiry when creating an invitation.
+Invitation records store a hash of the invitation token and an expiry timestamp rather than storing the raw token. The invitation service currently sets a seven-day expiry.
 
 ### Role-based access control (RBAC)
 
-- Define permissions using stable keys such as `tasks.create`, `tasks.assign`, and `members.invite`.
-- Associate permissions with workspace roles through role-permission mappings.
-- Seed permission records and apply the role policies when a workspace is created.
-- Check workspace membership and the requested permission before protected service operations.
+- Maintain a permission catalogue using keys such as `workspace.read`, `members.invite`, and `tasks.assign`.
+- Map permissions to roles through the `role_permissions` table.
+- Seed permission records and provision role policies during workspace creation.
+- Check workspace membership and the required permission before protected service operations.
 
-The predefined role policies are maintained in `app/modules/authorization/role_policies.py`. The permission catalogue is in `app/modules/authorization/permissions.py`.
+The permission catalogue and default role policies are defined in:
 
-### Tasks
+- `app/modules/authorization/permissions.py`
+- `app/modules/authorization/role_policies.py`
 
-- Create, read, update, and soft-delete workspace tasks.
+### Tasks, tags, and collaboration
+
+- Create, read, update, and soft-delete tasks.
+- Restore soft-deleted tasks.
 - Track task status: `TODO`, `IN_PROGRESS`, and `COMPLETED`.
 - Track task priority: `LOW`, `MEDIUM`, `HIGH`, and `URGENT`.
-- Store optional descriptions and due dates.
-- Support one level of subtasks; a subtask cannot itself have another subtask.
-- Validate that a parent task belongs to the same workspace.
-- Assign multiple workspace members to a task and remove assignments.
+- Store task descriptions and optional due dates.
+- Support a single level of subtasks and validate parent-task workspace boundaries.
+- Assign multiple workspace members to a task.
 - Retrieve tasks assigned to the current user.
-
-### Tags, comments, and activity history
-
-- Create workspace-scoped tags as they are assigned to tasks.
-- Reuse tags across tasks within the same workspace.
-- Add and remove task-tag associations.
-- Create, update, and soft-delete task comments; the service restricts comment edits and deletion to the comment author.
-- Record task activity such as task creation, updates, deletion, assignment changes, tag changes, and comment changes.
-- Store activity change details as PostgreSQL JSONB data.
+- Create workspace-scoped tags and associate reusable tags with tasks.
+- Create, update, and soft-delete task comments; comment ownership is checked by the service.
+- Record task activity for supported task, assignment, tag, and comment operations.
+- Store activity change data using PostgreSQL JSONB.
 
 ## Technology stack
 
 | Area | Technology |
 |---|---|
+| Language | Python |
 | Web framework | FastAPI |
 | ASGI server | Uvicorn |
-| API | GraphQL |
-| GraphQL implementation | Strawberry GraphQL |
+| API style | GraphQL |
+| GraphQL library | Strawberry GraphQL |
 | Database | PostgreSQL |
 | ORM | SQLAlchemy async ORM |
-| Database driver | Psycopg 3 |
-| Schema migrations | Alembic |
-| Configuration and validation | Pydantic / Pydantic Settings |
-| Authentication provider | Amazon Cognito |
+| PostgreSQL driver | Psycopg 3 |
+| Migrations | Alembic |
+| Settings | Pydantic Settings |
+| Authentication | Amazon Cognito |
 | AWS SDK | Boto3 |
-| Token verification | PyJWT and Cognito JWKS |
-| Async runtime | Python asyncio |
+| JWT verification | PyJWT and Cognito JWKS |
+| Async execution | Python asyncio |
 
-The exact pinned dependencies are maintained in [requirements.txt](requirements.txt).
+Pinned dependencies are listed in [requirements.txt](requirements.txt).
 
 ## Architecture
 
-The application is a modular monolith. Each business module owns its domain-specific GraphQL operations, services, repositories, types, and ORM models where applicable.
-
-### Request flow
-
-1. A client sends a GraphQL request to `/graphql`, usually with an `Authorization: Bearer <access-token>` header.
-2. FastAPI middleware handles request logging; CORS middleware handles configured cross-origin requests.
-3. The GraphQL context dependency obtains an asynchronous SQLAlchemy session and verifies the Cognito access token when one is supplied.
-4. The context exposes the database session, verified user claims, and access token to GraphQL resolvers.
-5. Resolvers validate authentication where required and call the relevant service.
-6. Services enforce business rules and, for protected workspace operations, check membership and permissions.
-7. Repositories perform database access through SQLAlchemy.
-8. Strawberry returns the GraphQL response; centralized GraphQL error handling is configured through the custom router.
-
-### Module responsibilities
+The application uses a layered, modular-monolith approach:
 
 | Layer | Responsibility |
 |---|---|
-| GraphQL queries and mutations | Define the client-facing API and translate inputs into service calls |
+| GraphQL queries and mutations | Expose client operations and pass validated inputs to services |
 | Types | Define GraphQL input and output types |
-| Services | Enforce business rules, validation, and authorization |
-| Repositories | Encapsulate database queries and persistence |
-| Models | Define SQLAlchemy ORM tables and relationships |
-| Core / DB | Shared configuration, middleware, engine, and session management |
+| Services | Apply business rules, validation, and authorization |
+| Repositories | Encapsulate SQLAlchemy queries and persistence operations |
+| Models | Define database tables and ORM mappings |
+| Core and database | Provide configuration, logging, middleware, engine, and session management |
+
+### Request lifecycle
+
+1. A client sends a request to `POST /graphql`, optionally including an access token in the `Authorization: Bearer <token>` header.
+2. FastAPI middleware handles request logging and assigns a request ID. CORS middleware applies the configured cross-origin policy.
+3. Strawberry's context dependency obtains an asynchronous SQLAlchemy session.
+4. If a bearer token is present, the application verifies the Cognito access token and resolves the local user using the token's `sub` claim.
+5. The GraphQL context exposes the database session, authenticated claims (when valid), and access token to resolvers.
+6. Resolvers delegate business operations to the relevant service.
+7. Services enforce domain rules and call authorization checks for protected workspace operations.
+8. Repositories read or modify PostgreSQL through SQLAlchemy.
+9. The custom GraphQL router formats expected GraphQL errors and logs unexpected exceptions with the request ID.
+
+### Error handling and request logging
+
+- `RequestLoggingMiddleware` provides request-level logging and the `X-Request-ID` response header.
+- Centralized logging is configured in `app/core/logging`.
+- `CentralizedGraphQLRouter` returns a generic internal-server-error message for unexpected resolver exceptions while logging the underlying exception.
+- Expected GraphQL errors retain their formatted error information and receive the request ID in their extensions.
 
 ## Project structure
 
-The following is a high-level map of the current repository. Some modules intentionally use slightly different internal layouts as they have evolved.
+The following tree reflects the current repository layout (with repetitive package initializer files omitted):
 
 ```text
 ClickUp-Clone/
@@ -140,7 +144,6 @@ ClickUp-Clone/
 │   │   ├── database.py
 │   │   ├── logging/
 │   │   └── middleware/
-│   │       └── request_logging.py
 │   ├── db/
 │   │   ├── base.py
 │   │   └── session.py
@@ -149,16 +152,7 @@ ClickUp-Clone/
 │   │   └── schema.py
 │   └── modules/
 │       ├── auth/
-│       │   ├── authorization.py
-│       │   ├── cognito.py
-│       │   ├── mutation.py
-│       │   ├── service.py
-│       │   └── token_service.py
 │       ├── authorization/
-│       │   ├── permission_seeder.py
-│       │   ├── permissions.py
-│       │   ├── role_policies.py
-│       │   └── service.py
 │       ├── users/
 │       ├── workspaces/
 │       │   ├── models/
@@ -187,70 +181,85 @@ ClickUp-Clone/
 ├── alembic.ini
 ├── main.py
 ├── requirements.txt
+├── LICENSE
 └── .gitignore
 ```
 
-## Authentication and request lifecycle
+### Important entry points
 
-Amazon Cognito is the identity provider. The application does not treat an arbitrary JWT as authenticated: `app/modules/auth/token_service.py` verifies the signature using the Cognito JWKS keys, checks the issuer and expiry, requires the `token_use` claim to be `access`, and checks the Cognito app-client ID.
-
-For authenticated GraphQL requests:
-
-- Send the Cognito **access token** in the Authorization header.
-- The GraphQL context places verified claims in `current_user`.
-- Resolvers use `require_authenticated_user` to reject unauthenticated access.
-- The local user is looked up by Cognito `sub`, rather than trusting a client-supplied user ID.
-
-The login mutation also checks the Cognito identity's verified email before creating or retrieving the local application user.
-
-## Authorization model
-
-Authorization is workspace-scoped. A user must first be a member of the target workspace. The role assigned to that membership determines the permissions available to the user.
-
-The default role policies currently defined in the code are:
-
-| Role | General access |
+| File | Purpose |
 |---|---|
-| OWNER | Full workspace, membership, role/permission, task, comment, and tag permissions |
+| `main.py` | Creates the FastAPI application, configures middleware, mounts GraphQL, and exposes the health endpoint |
+| `app/core/config.py` | Loads application settings from environment variables and `.env` |
+| `app/db/session.py` | Creates the async SQLAlchemy engine, session factory, and database dependency |
+| `app/graphql/schema.py` | Composes module query and mutation classes into the Strawberry schema |
+| `app/graphql/error_handler.py` | Implements centralized GraphQL error formatting |
+| `migrations/env.py` | Connects Alembic to application settings and model metadata |
+
+## Authentication and authorization
+
+### Authentication with Cognito
+
+Amazon Cognito is the identity provider. The backend verifies access tokens using the User Pool's JWKS public keys. Token verification checks the signature, issuer, expiry, required claims, `token_use=access`, and configured Cognito app-client ID.
+
+For authenticated GraphQL operations, send the Cognito **access token**:
+
+```http
+Authorization: Bearer <COGNITO_ACCESS_TOKEN>
+Content-Type: application/json
+```
+
+The application resolves the local user from the verified Cognito `sub` claim. Resolvers can use the authentication helper in `app/modules/auth/authorization.py` to require an authenticated user.
+
+### Workspace RBAC
+
+Authorization is scoped to a workspace:
+
+1. Resolve the user's role in the requested workspace.
+2. Reject the request if the user is not a workspace member.
+3. Check whether the role is mapped to the requested permission.
+4. Reject the operation when the permission is not granted.
+
+Default role policies are defined in code and provisioned for each new workspace.
+
+| Role | Intended access |
+|---|---|
+| OWNER | Full workspace, member, role/permission, task, comment, and tag access |
 | ADMIN | Workspace read, member read/invite, and task, comment, and tag operations |
 | MEMBER | Workspace read, task create/read/update, and comment create/read |
 
-The exact permission keys for each role are defined in `app/modules/authorization/role_policies.py`; that file is the source of truth if this summary and implementation ever differ.
-
-Protected service operations call `AuthorizationService.require_permission(...)`. This checks that the user has a role in the workspace and that the role is mapped to the requested permission.
+The exact permission mapping is defined in `ROLE_POLICIES`; refer to that file for the source of truth.
 
 ## Domain model
 
-The current ORM models and migration history cover these principal entities:
+The principal persisted entities include:
 
 | Entity | Purpose |
 |---|---|
-| Users | Local application identity linked to a Cognito subject |
-| User profiles | Display name and profile information |
-| Workspaces | Top-level collaboration boundary with a unique slug |
-| Workspace members | Associates users with a workspace and role |
+| Users | Local application identities linked to Cognito subjects |
+| User profiles | User display and profile information |
+| Workspaces | Collaboration boundaries with unique slugs |
+| Workspace members | Associates users with workspaces and roles |
 | Roles | Workspace-specific role definitions |
 | Permissions | Catalogue of permission keys |
-| Role permissions | Maps workspace roles to permission records |
-| Workspace invitations | Tracks invitation recipient, role, token hash, status, and expiry |
-| Tasks | Workspace tasks, including status, priority, due date, and optional parent task |
-| Task assignees | Associates multiple workspace members with a task |
-| Tags / task tags | Workspace-scoped tags and task-tag associations |
+| Role permissions | Maps roles to permissions within a workspace |
+| Workspace invitations | Tracks invitees, assigned roles, token hashes, status, and expiry |
+| Tasks | Workspace tasks with status, priority, due date, and optional parent task |
+| Task assignees | Associates multiple users with tasks |
+| Tags and task tags | Reusable workspace tags and task-tag associations |
 | Task comments | User-authored task discussion |
-| Task history | Activity/audit records with JSONB change details |
+| Task history | Task activity records with structured change details |
 
-Task status, priority, and invitation status are represented by enumerated values in the code and database migrations.
+Invitation status, task status, and task priority use enumerated values. Task activity details are stored as JSONB.
 
 ## Getting started
 
 ### Prerequisites
 
-Install or prepare:
-
-- Python compatible with the pinned dependencies in `requirements.txt`.
+- Python version compatible with the pinned packages in `requirements.txt`.
 - PostgreSQL.
 - An Amazon Cognito User Pool and app client configured for the authentication flows used by the application.
-- AWS credentials/configuration with access to the Cognito User Pool operations used by the backend.
+- AWS credentials/configuration for the Cognito operations used by the backend.
 
 ### 1. Clone the repository
 
@@ -261,14 +270,14 @@ cd ClickUp-Clone
 
 ### 2. Create and activate a virtual environment
 
-Windows PowerShell:
+**Windows PowerShell**
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-macOS / Linux:
+**macOS / Linux**
 
 ```bash
 python3 -m venv .venv
@@ -280,13 +289,10 @@ source .venv/bin/activate
 ```bash
 python -m pip install --upgrade pip
 pip install -r requirements.txt
-```
-
-The current configuration module imports `pydantic-settings`; if it is not installed in your environment, install it with:
-
-```bash
 pip install pydantic-settings
 ```
+
+The application imports `pydantic-settings` in its settings module; install it explicitly because it is not currently listed in `requirements.txt`.
 
 ### 4. Configure environment variables
 
@@ -301,44 +307,46 @@ COGNITO_CLIENT_SECRET=<your_cognito_app_client_secret>
 COGNITO_USER_POOL_ID=<your_cognito_user_pool_id>
 ```
 
-Use the actual database credentials and Cognito values from your environment. Do not commit `.env` or expose Cognito client secrets.
+Notes:
 
-The application settings are defined in `app/core/config.py`. The database URL must use a SQLAlchemy-compatible PostgreSQL URL with the Psycopg driver for the async engine configured in `app/db/session.py`.
+- `DATABASE_URL` is required by the application settings.
+- `COGNITO_USER_POOL_ID` is required by the token verification module.
+- `AWS_REGION` defaults to `ap-south-1` when omitted.
+- `COGNITO_CLIENT_SECRET` is needed when the Cognito app client is configured with a secret.
+- Keep `.env` out of version control. Never commit real credentials or secrets.
+
+The database URL must be compatible with SQLAlchemy's async engine and the Psycopg driver.
 
 ### 5. Create the PostgreSQL database
 
-Create an empty database matching the database name in `DATABASE_URL`. For example, from a PostgreSQL administrative session:
+Create an empty database matching the name in `DATABASE_URL`. For example:
 
 ```sql
 CREATE DATABASE clickup_clone;
 ```
 
-If you use a different database name, update `DATABASE_URL` accordingly.
-
-### 6. Apply database migrations
+### 6. Apply migrations
 
 ```bash
 alembic upgrade head
 ```
 
-This applies the migration revisions under `migrations/versions` to the configured database.
-
-### 7. Start the API
+### 7. Start the application
 
 ```bash
 uvicorn main:app --reload
 ```
 
-The development server is normally available at:
+The development server uses the default Uvicorn address unless configured otherwise:
 
-- GraphQL endpoint: [http://127.0.0.1:8000/graphql](http://127.0.0.1:8000/graphql)
-- Health check: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
+- GraphQL API: http://127.0.0.1:8000/graphql
+- Health check: http://127.0.0.1:8000/health
 
-The health check returns a simple application status response. The current CORS configuration in `main.py` allows the Vite development origin `http://localhost:5173`, with POST and OPTIONS methods and the Content-Type and Authorization headers.
+The current CORS configuration in `main.py` allows the Vite development origin `http://localhost:5173`, with POST and OPTIONS methods and the Content-Type and Authorization headers.
 
 ## Database migrations
 
-Alembic is configured to use the application's database URL and SQLAlchemy model metadata.
+Alembic is configured in `alembic.ini` and `migrations/env.py`. The migration environment imports the ORM models and uses the application's configured database URL and SQLAlchemy metadata.
 
 Common commands:
 
@@ -359,26 +367,19 @@ alembic revision --autogenerate -m "describe the schema change"
 alembic downgrade -1
 ```
 
-Always review autogenerated migration files before applying them, especially for enum changes, foreign keys, constraints, and destructive schema operations.
+Review autogenerated migration scripts before applying them, especially when changing enums, foreign keys, constraints, or columns that may contain existing data.
 
 ## GraphQL API
 
-The Strawberry schema is composed in `app/graphql/schema.py` from module-level query and mutation classes.
+The Strawberry schema is composed in `app/graphql/schema.py`. It combines query and mutation classes from the authentication, user, workspace, membership, invitation, task, task-comment, task-history, and tag modules.
 
-The active API endpoint is:
+The endpoint is:
 
 ```text
 POST /graphql
 ```
 
-For authenticated operations, include the Cognito access token:
-
-```http
-Authorization: Bearer <COGNITO_ACCESS_TOKEN>
-Content-Type: application/json
-```
-
-A basic query:
+A simple query available in the schema:
 
 ```graphql
 query {
@@ -386,57 +387,29 @@ query {
 }
 ```
 
-A basic signup mutation:
+For authenticated operations, include the Cognito access token in the Authorization header. Consult the relevant module's mutation, query, and type definitions for the exact operation names and input/output fields.
 
-```graphql
-mutation {
-  signup(
-    email: "user@example.com"
-    password: "YourStrongPassword123!"
-    displayName: "Example User"
-  ) {
-    confirmationRequired
-    message
-  }
-}
-```
-
-The GraphQL schema uses Strawberry's Python-to-GraphQL naming conversion. Check the declared input and output types in the relevant module for the exact fields of each operation.
-
-### Main operation areas
-
-| Module | GraphQL responsibilities |
-|---|---|
-| Auth | Signup, confirmation, resend confirmation code, login, refresh session, logout |
-| Users | Current-user query and profile update |
-| Workspaces | Create/update workspace and workspace queries |
-| Membership | Member queries, role changes, and member removal |
-| Invitations | Create, accept, decline, revoke, resend, and query invitations |
-| Tasks | Task queries and task mutations |
-| Task comments | Create, update, and delete comments |
-| Task history | Query task activity history |
-| Tags | Tag queries and tag mutations |
-
-## Configuration reference
+## Configuration
 
 | Variable | Required | Description |
 |---|---:|---|
-| `DATABASE_URL` | Yes | PostgreSQL SQLAlchemy connection URL |
-| `AWS_REGION` | No | Cognito AWS region; defaults to `ap-south-1` |
-| `COGNITO_CLIENT_ID` | Yes for Cognito auth | Cognito app client ID |
-| `COGNITO_CLIENT_SECRET` | Required for a secret-enabled app client | Cognito app client secret used to calculate the secret hash |
-| `COGNITO_USER_POOL_ID` | Yes for token verification | Cognito User Pool ID used to construct the token issuer and JWKS URL |
+| `DATABASE_URL` | Yes | Async SQLAlchemy PostgreSQL connection URL using Psycopg |
+| `AWS_REGION` | No | Cognito region; defaults to `ap-south-1` |
+| `COGNITO_CLIENT_ID` | For token verification | Cognito app-client ID checked against the access token |
+| `COGNITO_CLIENT_SECRET` | If app client has a secret | Used by Cognito authentication flows that require a secret hash |
+| `COGNITO_USER_POOL_ID` | Yes for token verification | Used to construct the Cognito issuer and JWKS URL |
 
-## Implementation notes
+## Operational notes
 
-- The repository is a backend project; no frontend application is included in the current tree.
-- The FastAPI application registers the Strawberry GraphQL router at `/graphql` and a `/health` endpoint.
-- A separate authentication HTTP router exists under `app/modules/auth/router.py`, but it is not included in `main.py`; the documented active authentication flow is through the GraphQL mutations.
-- The application uses an async SQLAlchemy engine and session dependency for GraphQL database work.
-- Task deletion and comment deletion are implemented as soft-delete operations in their services/repositories; task activity is recorded separately.
-- Workspace creation provisions the default roles, role-permission mappings, and the creator's OWNER membership.
-- No Docker Compose file, automated test suite, or deployment workflow was present in the inspected repository tree. Add these as the project evolves rather than assuming they are already available.
+- This repository currently contains backend code only; no frontend is included.
+- The FastAPI application mounts the GraphQL router at `/graphql` and exposes `/health`.
+- The async SQLAlchemy session is provided through the GraphQL context dependency.
+- Task and comment deletion use soft-delete behavior in the service/repository layer.
+- Task restoration is implemented for soft-deleted tasks.
+- Workspace creation provisions the default roles, permission mappings, and creator's OWNER membership.
+- No Docker Compose configuration, automated test suite, or deployment workflow is present in the current repository tree.
+- The current `requirements.txt` does not include `pydantic-settings`, although `app/core/config.py` imports it. It is installed explicitly in the setup instructions above; consider adding it to the dependency file.
 
 ## License
 
-No license file was present in the inspected repository. All rights are reserved by default unless a license is added to the project.
+This project is licensed under the **MIT License**. See [LICENSE](LICENSE) for the complete license text.

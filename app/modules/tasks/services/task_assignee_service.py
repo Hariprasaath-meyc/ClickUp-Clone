@@ -3,6 +3,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.authorization.decorators import require_permission
 from app.modules.authorization.permissions import Permission
 from app.modules.tasks.enums import TaskHistoryAction
 from app.modules.tasks.repository import (
@@ -11,30 +12,20 @@ from app.modules.tasks.repository import (
 )
 from app.modules.tasks.services.task_history_service import TaskHistoryService
 from app.modules.workspaces.models import WorkspaceMember
-from app.modules.workspaces.security.authorization_service import (
-    AuthorizationService,
-)
 
 
 class TaskAssigneeService:
     @staticmethod
+    @require_permission(Permission.TASKS_ASSIGN)
     async def assign_users(
         db: AsyncSession,
         workspace_id: uuid.UUID,
         task_id: uuid.UUID,
         user_ids: list[uuid.UUID],
-        assigned_by: uuid.UUID,
+        user_id: uuid.UUID,
     ):
 
-        # 1. Check assignment permission
-        await AuthorizationService.require_permission(
-            db,
-            assigned_by,
-            workspace_id,
-            Permission.TASKS_ASSIGN.value,
-        )
-
-        # 2. Validate task existence
+        # 1. Validate task existence
         task = await TaskRepository.get_by_id(
             db,
             task_id,
@@ -44,14 +35,14 @@ class TaskAssigneeService:
         if task is None:
             raise ValueError("Task not found.")
 
-        # 3. Validate input
+        # 2. Validate input
         if not user_ids:
             raise ValueError("At least one assignee is required.")
 
         # Remove duplicate IDs from the request
         user_ids = list(dict.fromkeys(user_ids))
 
-        # 4. Verify that all users are workspace members
+        # 3. Verify that all users are workspace members
         result = await db.execute(
             select(WorkspaceMember.user_id).where(
                 WorkspaceMember.workspace_id == workspace_id,
@@ -67,7 +58,7 @@ class TaskAssigneeService:
         if invalid_ids:
             raise ValueError("One or more users are not members of this workspace.")
 
-        # 5. Retrieve existing assignments
+        # 4. Retrieve existing assignments
         existing_assignments = await TaskAssigneeRepository.get_task_assignees(
             db,
             workspace_id,
@@ -76,9 +67,11 @@ class TaskAssigneeService:
 
         existing_user_ids = {assignment.user_id for assignment in existing_assignments}
 
-        # 6. Assign only users who are not already assigned
+        # 5. Assign only users who are not already assigned
         new_user_ids = [
-            user_id for user_id in user_ids if user_id not in existing_user_ids
+            assignee_id
+            for assignee_id in user_ids
+            if assignee_id not in existing_user_ids
         ]
 
         if new_user_ids:
@@ -86,14 +79,16 @@ class TaskAssigneeService:
                 db=db,
                 workspace_id=workspace_id,
                 task_id=task_id,
-                actor_id=assigned_by,
+                actor_id=user_id,
                 action=TaskHistoryAction.TASK_ASSIGNED,
                 changes={
-                    "assigned_user_ids": [str(user_id) for user_id in new_user_ids]
+                    "assigned_user_ids": [
+                        str(assignee_id) for assignee_id in new_user_ids
+                    ]
                 },
             )
 
-        # 7. Return all current assignments
+        # 6. Return all current assignments
         return await TaskAssigneeRepository.get_task_assignees(
             db,
             workspace_id,
@@ -101,23 +96,16 @@ class TaskAssigneeService:
         )
 
     @staticmethod
+    @require_permission(Permission.TASKS_ASSIGN)
     async def unassign_users(
         db: AsyncSession,
         workspace_id: uuid.UUID,
         task_id: uuid.UUID,
         user_ids: list[uuid.UUID],
-        requested_by: uuid.UUID,
+        user_id: uuid.UUID,
     ) -> int:
 
-        # 1. Check assignment permission
-        await AuthorizationService.require_permission(
-            db,
-            requested_by,
-            workspace_id,
-            Permission.TASKS_ASSIGN.value,
-        )
-
-        # 2. Validate task existence
+        # 1. Validate task existence
         task = await TaskRepository.get_by_id(
             db,
             task_id,
@@ -127,13 +115,13 @@ class TaskAssigneeService:
         if task is None:
             raise ValueError("Task not found.")
 
-        # 3. Validate input
+        # 2. Validate input
         if not user_ids:
             raise ValueError("At least one user ID is required.")
 
         user_ids = list(dict.fromkeys(user_ids))
 
-        # 4. Remove selected assignments
+        # 3. Retrieve existing assignments
         existing_assignments = await TaskAssigneeRepository.get_task_assignees(
             db,
             workspace_id,
@@ -143,12 +131,13 @@ class TaskAssigneeService:
         existing_user_ids = {assignment.user_id for assignment in existing_assignments}
 
         removed_user_ids = [
-            user_id for user_id in user_ids if user_id in existing_user_ids
+            assignee_id for assignee_id in user_ids if assignee_id in existing_user_ids
         ]
 
         if not removed_user_ids:
             return 0
 
+        # 4. Remove assignments
         removed_count = await TaskAssigneeRepository.unassign_users(
             db=db,
             workspace_id=workspace_id,
@@ -156,14 +145,17 @@ class TaskAssigneeService:
             user_ids=removed_user_ids,
         )
 
+        # 5. Record audit history
         await TaskHistoryService.record_activity(
             db=db,
             workspace_id=workspace_id,
             task_id=task_id,
-            actor_id=requested_by,
+            actor_id=user_id,
             action=TaskHistoryAction.TASK_UNASSIGNED,
             changes={
-                "unassigned_user_ids": [str(user_id) for user_id in removed_user_ids]
+                "unassigned_user_ids": [
+                    str(assignee_id) for assignee_id in removed_user_ids
+                ]
             },
         )
 

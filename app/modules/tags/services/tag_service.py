@@ -2,6 +2,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.authorization.decorators import require_permission
 from app.modules.authorization.permissions import Permission
 from app.modules.tags.repository import (
     TagRepository,
@@ -10,13 +11,11 @@ from app.modules.tags.repository import (
 from app.modules.tasks.enums import TaskHistoryAction
 from app.modules.tasks.repository import TaskRepository
 from app.modules.tasks.services import TaskHistoryService
-from app.modules.workspaces.security.authorization_service import (
-    AuthorizationService,
-)
 
 
 class TagService:
     @staticmethod
+    @require_permission(Permission.TASKS_UPDATE)
     async def assign_tags(
         db: AsyncSession,
         workspace_id: uuid.UUID,
@@ -24,16 +23,7 @@ class TagService:
         tag_names: list[str],
         user_id: uuid.UUID,
     ):
-
-        # 1. Check permission
-        await AuthorizationService.require_permission(
-            db=db,
-            user_id=user_id,
-            workspace_id=workspace_id,
-            permission_key=Permission.TASKS_UPDATE.value,
-        )
-
-        # 2. Validate task existence
+        # 1. Validate task existence.
         task = await TaskRepository.get_by_id(
             db=db,
             task_id=task_id,
@@ -43,7 +33,7 @@ class TagService:
         if task is None:
             raise ValueError("Task not found.")
 
-        # 3. Validate tag names
+        # 2. Validate tag names.
         if not tag_names:
             raise ValueError("At least one tag name is required.")
 
@@ -58,16 +48,15 @@ class TagService:
 
         assigned_tag_ids = []
 
-        # 4. Process each tag
+        # 3. Process each tag.
         for name in normalized_names:
-            # Check whether tag already exists
             tag = await TagRepository.get_by_name(
                 db=db,
                 workspace_id=workspace_id,
                 name=name,
             )
 
-            # Create tag if it doesn't exist
+            # Create tag if it doesn't exist.
             if tag is None:
                 tag = await TagRepository.create(
                     db=db,
@@ -76,7 +65,7 @@ class TagService:
                     created_by=user_id,
                 )
 
-            # Check whether already assigned
+            # Check whether already assigned.
             existing_assignments = await TaskTagRepository.get_task_tags(
                 db=db,
                 workspace_id=workspace_id,
@@ -98,7 +87,7 @@ class TagService:
 
                 assigned_tag_ids.append(tag.id)
 
-        # 5. Record audit history
+        # 4. Record audit history.
         if assigned_tag_ids:
             await TaskHistoryService.record_activity(
                 db=db,
@@ -109,7 +98,7 @@ class TagService:
                 changes={"tag_ids": [str(tag_id) for tag_id in assigned_tag_ids]},
             )
 
-        # 6. Return current task tags
+        # 5. Return current task tags.
         return await TaskTagRepository.get_task_tags(
             db=db,
             workspace_id=workspace_id,
@@ -117,6 +106,7 @@ class TagService:
         )
 
     @staticmethod
+    @require_permission(Permission.TASKS_UPDATE)
     async def remove_tags(
         db: AsyncSession,
         workspace_id: uuid.UUID,
@@ -125,15 +115,7 @@ class TagService:
         user_id: uuid.UUID,
     ) -> int:
 
-        # 1. Check permission
-        await AuthorizationService.require_permission(
-            db=db,
-            user_id=user_id,
-            workspace_id=workspace_id,
-            permission_key=Permission.TASKS_UPDATE.value,
-        )
-
-        # 2. Validate task existence
+        # 1. Validate task existence.
         task = await TaskRepository.get_by_id(
             db=db,
             task_id=task_id,
@@ -143,13 +125,13 @@ class TagService:
         if task is None:
             raise ValueError("Task not found.")
 
-        # 3. Validate input
+        # 2. Validate input.
         if not tag_ids:
             raise ValueError("At least one tag ID is required.")
 
         tag_ids = list(dict.fromkeys(tag_ids))
 
-        # 4. Retrieve current assignments
+        # 3. Retrieve current assignments.
         existing_assignments = await TaskTagRepository.get_task_tags(
             db=db,
             workspace_id=workspace_id,
@@ -158,13 +140,12 @@ class TagService:
 
         existing_tag_ids = {assignment.tag_id for assignment in existing_assignments}
 
-        # Only remove tags actually assigned to this task
         removed_tag_ids = [tag_id for tag_id in tag_ids if tag_id in existing_tag_ids]
 
         if not removed_tag_ids:
             return 0
 
-        # 5. Remove associations
+        # 4. Remove associations.
         removed_count = 0
 
         for tag_id in removed_tag_ids:
@@ -178,7 +159,7 @@ class TagService:
             if removed:
                 removed_count += 1
 
-        # 6. Record audit history
+        # 5. Record audit history.
         if removed_count:
             await TaskHistoryService.record_activity(
                 db=db,
@@ -192,18 +173,12 @@ class TagService:
         return removed_count
 
     @staticmethod
+    @require_permission(Permission.TASKS_READ)
     async def get_workspace_tags(
         db: AsyncSession,
         workspace_id: uuid.UUID,
         user_id: uuid.UUID,
     ):
-        await AuthorizationService.require_permission(
-            db=db,
-            user_id=user_id,
-            workspace_id=workspace_id,
-            permission_key=Permission.TASKS_READ.value,
-        )
-
         return await TagRepository.get_workspace_tags(
             db=db,
             workspace_id=workspace_id,

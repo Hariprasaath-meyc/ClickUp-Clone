@@ -3,6 +3,8 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.authorization.decorators import require_permission
+from app.modules.authorization.permissions import Permission
 from app.modules.users.models import User
 from app.modules.users.profile_models import UserProfile
 from app.modules.workspaces.models import (
@@ -14,9 +16,11 @@ from app.modules.workspaces.security.role_service import RoleService
 
 class MemberService:
     @staticmethod
+    @require_permission(Permission.MEMBERS_READ)
     async def get_workspace_members(
         db: AsyncSession,
         workspace_id: UUID,
+        user_id: UUID,
     ) -> list[tuple[User, UserProfile, Role, WorkspaceMember]]:
 
         result = await db.execute(
@@ -58,10 +62,12 @@ class MemberService:
         return result.scalar_one_or_none() is not None
 
     @staticmethod
+    @require_permission(Permission.MEMBERS_READ)
     async def get_workspace_member(
         db: AsyncSession,
         workspace_id: UUID,
         user_id: UUID,
+        target_user_id: UUID,
     ) -> tuple[User, UserProfile | None, Role, WorkspaceMember] | None:
 
         result = await db.execute(
@@ -80,18 +86,20 @@ class MemberService:
             )
             .where(
                 WorkspaceMember.workspace_id == workspace_id,
-                User.id == user_id,
+                User.id == target_user_id,
             )
         )
 
         return result.one_or_none()
 
     @staticmethod
+    @require_permission(Permission.MEMBERS_UPDATE_ROLE)
     async def change_member_role(
         db: AsyncSession,
         workspace_id: UUID,
         user_id: UUID,
         role_key: str,
+        target_user_id: UUID,
     ) -> WorkspaceMember:
 
         # Step 1: Retrieve target membership and current role.
@@ -104,7 +112,7 @@ class MemberService:
             )
             .where(
                 WorkspaceMember.workspace_id == workspace_id,
-                WorkspaceMember.user_id == user_id,
+                WorkspaceMember.user_id == target_user_id,
             )
         )
 
@@ -143,10 +151,12 @@ class MemberService:
         return membership
 
     @staticmethod
+    @require_permission(Permission.MEMBERS_REMOVE)
     async def remove_member_from_workspace(
         db: AsyncSession,
         workspace_id: UUID,
         user_id: UUID,
+        target_user_id: UUID,
     ) -> None:
 
         # Step 1: Retrieve target membership and current role.

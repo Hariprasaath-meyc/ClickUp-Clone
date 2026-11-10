@@ -3,33 +3,24 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.authorization.decorators import require_permission
 from app.modules.authorization.permissions import Permission
 from app.modules.tasks.enums.task_history_action import TaskHistoryAction
 from app.modules.tasks.repository import (
     TaskHistoryRepository,
     TaskRepository,
 )
-from app.modules.workspaces.security.authorization_service import (
-    AuthorizationService,
-)
 
 
 class TaskHistoryService:
     @staticmethod
+    @require_permission(Permission.TASKS_READ)
     async def get_task_history(
         db: AsyncSession,
         workspace_id: uuid.UUID,
         task_id: uuid.UUID,
         user_id: uuid.UUID,
     ):
-
-        # Check whether the user can access task information
-        await AuthorizationService.require_permission(
-            db=db,
-            user_id=user_id,
-            workspace_id=workspace_id,
-            permission_key=Permission.TASKS_READ,
-        )
 
         # Verify that the task belongs to this workspace
         task = await TaskRepository.get_by_id(

@@ -114,5 +114,3 @@ class DeleteTaskResult:
 class RestoreTaskInput:
     workspace_id: UUID
     task_id: UUID
-
-
