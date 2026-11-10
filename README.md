@@ -578,6 +578,117 @@ sequenceDiagram
     end
 ```
 
+
+### Task collaboration flow (high-level)
+
+This flow groups task comments, workspace-scoped tags, and subtasks. Tags are reusable across multiple tasks within the same workspace; a task and its tag must belong to that workspace. Subtasks support one nesting level.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Workspace Member
+    participant FE as Frontend
+    participant BE as FastAPI + GraphQL
+    participant Auth as Authentication / RBAC
+    participant CS as Collaboration Services
+    participant DB as PostgreSQL
+
+    Note over User,DB: 1. Task Comments
+    User->>FE: Add comment to task
+    FE->>BE: Submit comment request
+    BE->>Auth: Authenticate and check permission
+    Auth-->>BE: Access granted
+    BE->>CS: Create comment
+    CS->>DB: Validate task and save comment
+    DB-->>CS: Comment created
+    CS-->>BE: Comment result
+    BE-->>FE: Comment response
+    FE-->>User: Display comment
+
+    User->>FE: View task comments
+    FE->>BE: Request comments
+    BE->>CS: Retrieve task comments
+    CS->>DB: Fetch comments
+    DB-->>CS: Comment records
+    CS-->>BE: Comments list
+    BE-->>FE: Comments response
+    FE-->>User: Display comments
+
+    User->>FE: Update or delete own comment
+    FE->>BE: Submit comment modification
+    BE->>Auth: Authenticate user
+    Auth-->>BE: Access granted
+    BE->>CS: Modify comment
+    CS->>DB: Validate comment ownership
+    DB-->>CS: Ownership validation
+
+    alt User owns the comment
+        CS->>DB: Update or soft-delete comment
+        DB-->>CS: Modification successful
+        CS-->>BE: Updated comment result
+        BE-->>FE: Success response
+        FE-->>User: Display updated comments
+    else User does not own the comment
+        CS-->>BE: Reject modification
+        BE-->>FE: Authorization error
+        BE-->>FE: Error response
+        FE-->>User: Display error
+    end
+
+    Note over User,DB: 2. Workspace Tags
+    User->>FE: Create a tag
+    FE->>BE: Submit tag details
+    BE->>Auth: Authenticate and check tag permission
+    Auth-->>BE: Access granted
+    BE->>CS: Create workspace tag
+    CS->>DB: Save tag with workspace ID
+    DB-->>CS: Tag created
+    CS-->>BE: Tag result
+    BE-->>FE: Tag response
+    FE-->>User: Display created tag
+
+    User->>FE: Attach existing tag to task
+    FE->>BE: Submit task-tag association
+    BE->>Auth: Authenticate and check task permission
+    Auth-->>BE: Access granted
+    BE->>CS: Associate tag with task
+    CS->>DB: Validate task and tag workspace IDs
+    DB-->>CS: Validation result
+
+    alt Task and tag belong to same workspace
+        CS->>DB: Save task-tag association
+        DB-->>CS: Association created
+        CS-->>BE: Association successful
+        BE-->>FE: Success response
+        FE-->>User: Display task tag
+    else Workspace mismatch
+        CS-->>BE: Reject association
+        BE-->>FE: Error response
+        FE-->>User: Display error
+    end
+
+    Note over User,DB: 3. Subtask Management
+    User->>FE: Create subtask
+    FE->>BE: Submit subtask details
+    BE->>Auth: Authenticate and check tasks.create
+    Auth-->>BE: Access granted
+    BE->>CS: Create subtask
+    CS->>DB: Validate parent task, workspace and nesting level
+    DB-->>CS: Validation result
+
+    alt Valid parent task and nesting level
+        CS->>DB: Save subtask with parent task ID
+        DB-->>CS: Subtask created
+        CS-->>BE: Subtask result
+        BE-->>FE: Subtask response
+        FE-->>User: Display subtask
+    else Invalid parent or nesting level
+        CS-->>BE: Reject subtask creation
+        BE-->>FE: Error response
+        FE-->>User: Display error
+    end
+```
+
 For authenticated GraphQL operations, send the Cognito **access token**:
 
 ```http
