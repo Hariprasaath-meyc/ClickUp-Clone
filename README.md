@@ -213,6 +213,64 @@ ClickUp-Clone/
 
 Amazon Cognito is the identity provider. The backend verifies access tokens using the User Pool's JWKS public keys. Token verification checks the signature, issuer, expiry, required claims, `token_use=access`, and configured Cognito app-client ID.
 
+### Authentication flow (high-level)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant FE as Frontend
+    participant BE as FastAPI + GraphQL
+    participant Auth as Authentication Service
+    participant Cognito as Amazon Cognito
+    participant DB as PostgreSQL
+
+    Note over User,DB: 1. Signup
+    User->>FE: Submit registration details
+    FE->>BE: Signup request
+    BE->>Auth: Process signup
+    Auth->>Cognito: Register user
+    Cognito-->>Auth: Confirmation required
+    Auth-->>BE: Signup result
+    BE-->>FE: Confirmation required
+
+    Note over User,DB: 2. Email Confirmation
+    User->>FE: Submit confirmation code
+    FE->>BE: Confirm signup
+    BE->>Auth: Verify confirmation
+    Auth->>Cognito: Confirm user
+    Cognito-->>Auth: Confirmation successful
+    Auth->>DB: Create local user record
+    DB-->>Auth: User created
+    Auth-->>BE: Confirmation result
+    BE-->>FE: Account confirmed
+
+    Note over User,DB: 3. Login
+    User->>FE: Submit credentials
+    FE->>BE: Login request
+    BE->>Auth: Authenticate user
+    Auth->>Cognito: Verify credentials
+    Cognito-->>Auth: Authentication tokens
+    Auth-->>BE: Login result
+    BE-->>FE: Return tokens
+    FE-->>User: Login successful
+
+    Note over User,DB: 4. Protected Request
+    FE->>BE: Request with access token
+    BE->>Auth: Validate access token
+    Auth->>Cognito: Verify token using JWKS
+    Cognito-->>Auth: Public signing keys
+    Auth-->>BE: Authentication result
+
+    alt Authenticated
+        BE->>DB: Execute application operation
+        DB-->>BE: Return data
+        BE-->>FE: Successful response
+    else Not authenticated
+        BE-->>FE: Authentication error
+    end
+```
+
 For authenticated GraphQL operations, send the Cognito **access token**:
 
 ```http
