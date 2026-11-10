@@ -506,6 +506,78 @@ sequenceDiagram
     Note over BE,Auth: Failed authentication or permission checks stop the operation and return an error.
 ```
 
+
+### Task assignment flow (high-level)
+
+This flow covers assigning multiple workspace members to a task, viewing assignees, and removing an assignee. The selected members must belong to the same workspace as the task.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Workspace Member
+    participant FE as Frontend
+    participant BE as FastAPI + GraphQL
+    participant Auth as Authentication / RBAC
+    participant AS as Task Assignment Service
+    participant DB as PostgreSQL
+
+    Note over User,DB: 1. Assign Members to a Task
+    User->>FE: Select task and assignees
+    FE->>BE: Submit assignment request
+    BE->>Auth: Authenticate and check tasks.assign
+    Auth-->>BE: Access granted
+    BE->>AS: Assign members to task
+    AS->>DB: Retrieve task and workspace
+    DB-->>AS: Task and workspace details
+    AS->>DB: Validate selected workspace members
+    DB-->>AS: Membership validation result
+
+    alt All members belong to the workspace
+        AS->>DB: Save task assignments
+        DB-->>AS: Assignments saved
+        AS-->>BE: Assignment successful
+        BE-->>FE: Success response
+        FE-->>User: Display assigned members
+    else Invalid workspace membership
+        AS-->>BE: Reject assignment
+        BE-->>FE: Error response
+        FE-->>User: Display assignment error
+    end
+
+    Note over User,DB: 2. View Task Assignees
+    User->>FE: Open task details
+    FE->>BE: Request task assignees
+    BE->>Auth: Authenticate and check task access
+    Auth-->>BE: Access granted
+    BE->>AS: Get task assignees
+    AS->>DB: Retrieve assigned members
+    DB-->>AS: Assignee details
+    AS-->>BE: Assignee list
+    BE-->>FE: Assignees response
+    FE-->>User: Display assigned members
+
+    Note over User,DB: 3. Remove Task Assignee
+    User->>FE: Remove selected assignee
+    FE->>BE: Submit removal request
+    BE->>Auth: Authenticate and check tasks.assign
+    Auth-->>BE: Access granted
+    BE->>AS: Remove task assignee
+    AS->>DB: Validate task assignment
+    DB-->>AS: Assignment details
+
+    alt Assignment exists
+        AS->>DB: Delete task-assignee association
+        DB-->>AS: Assignment removed
+        AS-->>BE: Removal successful
+        BE-->>FE: Success response
+        FE-->>User: Update assignee list
+    else Assignment not found
+        AS-->>BE: Reject removal
+        BE-->>FE: Error response
+        FE-->>User: Display error
+    end
+```
+
 For authenticated GraphQL operations, send the Cognito **access token**:
 
 ```http
