@@ -300,6 +300,60 @@ sequenceDiagram
     FE-->>User: Display new workspace
 ```
 
+
+### Workspace management flow (high-level)
+
+This flow covers viewing, updating, and soft-deleting an existing workspace. Each operation requires authentication and the relevant workspace permission.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant FE as Frontend
+    participant BE as FastAPI + GraphQL
+    participant Auth as Authentication / RBAC
+    participant WS as Workspace Service
+    participant DB as PostgreSQL
+
+    Note over User,DB: 1. View Workspace
+    User->>FE: Open workspace
+    FE->>BE: Request workspace details
+    BE->>Auth: Authenticate user and check workspace.read
+    Auth-->>BE: Access granted
+    BE->>WS: Get workspace
+    WS->>DB: Retrieve workspace
+    DB-->>WS: Workspace details
+    WS-->>BE: Workspace data
+    BE-->>FE: Workspace response
+    FE-->>User: Display workspace
+
+    Note over User,DB: 2. Update Workspace
+    User->>FE: Edit workspace details
+    FE->>BE: Submit update request
+    BE->>Auth: Authenticate user and check workspace.update
+    Auth-->>BE: Access granted
+    BE->>WS: Update workspace
+    WS->>DB: Update workspace record
+    DB-->>WS: Updated workspace
+    WS-->>BE: Update result
+    BE-->>FE: Updated workspace response
+    FE-->>User: Display updated workspace
+
+    Note over User,DB: 3. Delete Workspace
+    User->>FE: Confirm workspace deletion
+    FE->>BE: Submit delete request
+    BE->>Auth: Authenticate user and check workspace.delete
+    Auth-->>BE: Access granted
+    BE->>WS: Delete workspace
+    WS->>DB: Mark workspace as deleted
+    DB-->>WS: Deletion result
+    WS-->>BE: Delete result
+    BE-->>FE: Success response
+    FE-->>User: Workspace deleted
+
+    Note over BE,Auth: If authentication or permission checks fail, the backend returns an error and the operation is not executed.
+```
+
 For authenticated GraphQL operations, send the Cognito **access token**:
 
 ```http
