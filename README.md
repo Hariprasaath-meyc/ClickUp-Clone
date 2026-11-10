@@ -271,6 +271,35 @@ sequenceDiagram
     end
 ```
 
+### Workspace creation flow (high-level)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant FE as Frontend
+    participant BE as FastAPI + GraphQL
+    participant Auth as Authentication
+    participant WS as Workspace Service
+    participant DB as PostgreSQL
+
+    User->>FE: Enter workspace details
+    FE->>BE: Create workspace request + access token
+    BE->>Auth: Validate access token
+    Auth-->>BE: Authenticated user
+    BE->>WS: Create workspace
+    WS->>WS: Validate workspace payload
+    WS->>DB: Create workspace
+    DB-->>WS: Workspace created
+    WS->>DB: Create OWNER, ADMIN and MEMBER roles
+    WS->>DB: Assign OWNER role to creator
+    WS->>DB: Create default role permissions
+    DB-->>WS: Workspace setup completed
+    WS-->>BE: Workspace creation result
+    BE-->>FE: Workspace created successfully
+    FE-->>User: Display new workspace
+```
+
 For authenticated GraphQL operations, send the Cognito **access token**:
 
 ```http
