@@ -2,7 +2,7 @@
 
 A workspace-based project and task management backend built with **FastAPI, Strawberry GraphQL, PostgreSQL, and SQLAlchemy's async ORM**. Amazon Cognito handles user authentication, while PostgreSQL stores application users, workspaces, memberships, roles, permissions, tasks, tags, comments, invitations, and activity history.
 
-> **Project scope:** This repository contains the backend API. The current repository does not include a frontend, Docker Compose configuration, automated test suite, or deployment manifests.
+> **Project scope:** This repository contains the backend API. It does not currently include a frontend, Docker Compose configuration, automated test suite, or deployment manifests.
 
 ## Contents
 
@@ -12,10 +12,12 @@ A workspace-based project and task management backend built with **FastAPI, Stra
 - [Architecture](#architecture)
 - [Project structure](#project-structure)
 - [Authentication and authorization](#authentication-and-authorization)
+- [Payload validation](#payload-validation)
 - [Domain model](#domain-model)
 - [Getting started](#getting-started)
 - [Database migrations](#database-migrations)
 - [GraphQL API](#graphql-api)
+- [Code quality](#code-quality)
 - [Configuration](#configuration)
 - [Operational notes](#operational-notes)
 - [License](#license)
@@ -24,7 +26,7 @@ A workspace-based project and task management backend built with **FastAPI, Stra
 
 The application organizes collaboration around workspaces. A workspace has members and workspace-scoped roles; members collaborate on tasks, assign work, add tags and comments, and review task activity.
 
-The codebase is structured as a **modular monolith**. Business capabilities are grouped under `app/modules`, while shared application infrastructure—configuration, database sessions, logging, middleware, and GraphQL schema composition—is kept in dedicated packages.
+The codebase follows a **modular monolith** architecture. Business capabilities are grouped under `app/modules`, while shared application infrastructure—configuration, database sessions, logging, middleware, and GraphQL schema composition—is kept in dedicated packages.
 
 ## Features
 
@@ -44,13 +46,13 @@ The codebase is structured as a **modular monolith**. Business capabilities are 
 - Provision the `OWNER`, `ADMIN`, and `MEMBER` roles when a workspace is created.
 - Assign the workspace creator the `OWNER` role.
 - Read and update workspace information.
+- Soft-delete workspaces.
 - Invite users by email with a selected role.
 - Accept, decline, revoke, and resend invitations.
 - Read workspace members, update member roles, and remove members.
 - Protect owner membership from ordinary member role-change and removal operations.
-- Soft-delete workspaces.
 
-Invitation records store a hash of the invitation token and an expiry timestamp rather than storing the raw token. The invitation service currently sets a seven-day expiry.
+Invitation records store a hash of the invitation token rather than the raw token and include an expiry timestamp. Invitations currently expire after seven days.
 
 ### Role-based access control (RBAC)
 
@@ -58,11 +60,13 @@ Invitation records store a hash of the invitation token and an expiry timestamp 
 - Map permissions to roles through the `role_permissions` table.
 - Seed permission records and provision role policies during workspace creation.
 - Check workspace membership and the required permission before protected service operations.
+- Apply permission checks through the reusable `@require_permission(...)` decorator on protected service methods.
 
 The permission catalogue and default role policies are defined in:
 
 - `app/modules/authorization/permissions.py`
 - `app/modules/authorization/role_policies.py`
+- `app/modules/authorization/decorators.py`
 
 ### Tasks, tags, and collaboration
 
@@ -72,8 +76,7 @@ The permission catalogue and default role policies are defined in:
 - Track task priority: `LOW`, `MEDIUM`, `HIGH`, and `URGENT`.
 - Store task descriptions and optional due dates.
 - Support a single level of subtasks and validate parent-task workspace boundaries.
-- Assign multiple workspace members to a task.
-- Retrieve tasks assigned to the current user.
+- Assign multiple workspace members to a task and retrieve tasks assigned to the current user.
 - Create workspace-scoped tags and associate reusable tags with tasks.
 - Create, update, and soft-delete task comments; comment ownership is checked by the service.
 - Record task activity for supported task, assignment, tag, and comment operations.
@@ -92,13 +95,13 @@ The permission catalogue and default role policies are defined in:
 | ORM | SQLAlchemy async ORM |
 | PostgreSQL driver | Psycopg 3 |
 | Migrations | Alembic |
-| Settings | Pydantic Settings |
+| Payload validation and settings | Pydantic, Pydantic Settings |
 | Authentication | Amazon Cognito |
 | AWS SDK | Boto3 |
 | JWT verification | PyJWT and Cognito JWKS |
-| Async execution | Python asyncio |
+| Linting and formatting | Ruff |
 
-Pinned dependencies are listed in [requirements.txt](requirements.txt).
+Pinned application dependencies are listed in [requirements.txt](requirements.txt). Ruff configuration is maintained in `pyproject.toml`.
 
 ## Architecture
 
@@ -107,6 +110,7 @@ The application uses a layered, modular-monolith approach:
 | Layer | Responsibility |
 |---|---|
 | GraphQL queries and mutations | Expose client operations and pass validated inputs to services |
+| Schemas | Validate and normalize incoming application payloads with Pydantic |
 | Types | Define GraphQL input and output types |
 | Services | Apply business rules, validation, and authorization |
 | Repositories | Encapsulate SQLAlchemy queries and persistence operations |
@@ -120,21 +124,21 @@ The application uses a layered, modular-monolith approach:
 3. Strawberry's context dependency obtains an asynchronous SQLAlchemy session.
 4. If a bearer token is present, the application verifies the Cognito access token and resolves the local user using the token's `sub` claim.
 5. The GraphQL context exposes the database session, authenticated claims (when valid), and access token to resolvers.
-6. Resolvers delegate business operations to the relevant service.
-7. Services enforce domain rules and call authorization checks for protected workspace operations.
-8. Repositories read or modify PostgreSQL through SQLAlchemy.
+6. Resolvers validate incoming payloads using the relevant Pydantic schema and delegate business operations to services.
+7. Protected service methods run workspace permission checks through the authorization decorator.
+8. Services enforce domain rules and use repositories for database operations.
 9. The custom GraphQL router formats expected GraphQL errors and logs unexpected exceptions with the request ID.
 
 ### Error handling and request logging
 
 - `RequestLoggingMiddleware` provides request-level logging and the `X-Request-ID` response header.
 - Centralized logging is configured in `app/core/logging`.
-- `CentralizedGraphQLRouter` returns a generic internal-server-error message for unexpected resolver exceptions while logging the underlying exception.
+- `CentralizedGraphQLRouter` handles GraphQL errors, returns a generic internal-server-error message for unexpected resolver exceptions, and logs the underlying exception.
 - Expected GraphQL errors retain their formatted error information and receive the request ID in their extensions.
 
 ## Project structure
 
-The following tree reflects the current repository layout (with repetitive package initializer files omitted):
+The following tree shows the main packages and responsibilities. Repetitive package initializer files are omitted.
 
 ```text
 ClickUp-Clone/
@@ -153,12 +157,16 @@ ClickUp-Clone/
 │   └── modules/
 │       ├── auth/
 │       ├── authorization/
+│       │   ├── decorators.py
+│       │   ├── permissions.py
+│       │   └── role_policies.py
 │       ├── users/
 │       ├── workspaces/
 │       │   ├── models/
 │       │   ├── mutations/
 │       │   ├── queries/
 │       │   ├── repositories/
+│       │   ├── schemas/
 │       │   ├── security/
 │       │   └── services/
 │       ├── tasks/
@@ -180,6 +188,7 @@ ClickUp-Clone/
 │   └── versions/
 ├── alembic.ini
 ├── main.py
+├── pyproject.toml
 ├── requirements.txt
 ├── LICENSE
 └── .gitignore
@@ -194,7 +203,9 @@ ClickUp-Clone/
 | `app/db/session.py` | Creates the async SQLAlchemy engine, session factory, and database dependency |
 | `app/graphql/schema.py` | Composes module query and mutation classes into the Strawberry schema |
 | `app/graphql/error_handler.py` | Implements centralized GraphQL error formatting |
+| `app/modules/authorization/decorators.py` | Provides reusable service-level permission enforcement |
 | `migrations/env.py` | Connects Alembic to application settings and model metadata |
+| `pyproject.toml` | Contains Ruff linting and formatting configuration |
 
 ## Authentication and authorization
 
@@ -209,7 +220,7 @@ Authorization: Bearer <COGNITO_ACCESS_TOKEN>
 Content-Type: application/json
 ```
 
-The application resolves the local user from the verified Cognito `sub` claim. Resolvers can use the authentication helper in `app/modules/auth/authorization.py` to require an authenticated user.
+The application resolves the local user from the verified Cognito `sub` claim. Resolvers use the authentication helper in `app/modules/auth/authorization.py` to require an authenticated user.
 
 ### Workspace RBAC
 
@@ -220,7 +231,7 @@ Authorization is scoped to a workspace:
 3. Check whether the role is mapped to the requested permission.
 4. Reject the operation when the permission is not granted.
 
-Default role policies are defined in code and provisioned for each new workspace.
+Default role policies are provisioned for each new workspace.
 
 | Role | Intended access |
 |---|---|
@@ -228,7 +239,32 @@ Default role policies are defined in code and provisioned for each new workspace
 | ADMIN | Workspace read, member read/invite, and task, comment, and tag operations |
 | MEMBER | Workspace read, task create/read/update, and comment create/read |
 
-The exact permission mapping is defined in `ROLE_POLICIES`; refer to that file for the source of truth.
+The exact permission mapping is defined in `app/modules/authorization/role_policies.py`; use that file as the source of truth.
+
+### Service-level permission decorator
+
+Protected service methods use the reusable `@require_permission(Permission.<KEY>)` decorator. The decorator:
+
+1. Binds the decorated method's arguments by their parameter names.
+2. Extracts the `db`, `user_id`, and `workspace_id` values.
+3. Calls `AuthorizationService.require_permission(...)` before executing the original method.
+4. Stops execution when the user is not a workspace member or lacks the required permission.
+
+This keeps permission enforcement close to the business operation rather than duplicating the same authorization logic in every resolver. Internal helper methods that are not user-facing permission boundaries are not automatically decorated; they are called within the relevant service workflow.
+
+## Payload validation
+
+Pydantic is used as a dedicated validation layer for application payloads. GraphQL types describe the API contract, while Pydantic schemas validate the values passed into business operations.
+
+The workspace schema package currently includes payload models for workspace creation, updates, deletion, ID/slug queries, and membership operations. These schemas use validation features such as:
+
+- UUID parsing for identifiers.
+- Required fields, length limits, and string constraints.
+- Slug trimming and lowercase normalization.
+- Rejection of unexpected fields with `extra="forbid"`.
+- Cross-field validation, such as requiring at least one field in a workspace update.
+
+The current implementation is being introduced module by module; the workspace and membership payloads are the initial documented scope. See `app/modules/workspaces/schemas/` for the implemented schemas.
 
 ## Domain model
 
@@ -292,7 +328,7 @@ pip install -r requirements.txt
 pip install pydantic-settings
 ```
 
-The application imports `pydantic-settings` in its settings module; install it explicitly because it is not currently listed in `requirements.txt`.
+The settings module imports `pydantic-settings`, which is not currently listed in `requirements.txt`; install it explicitly as shown above.
 
 ### 4. Configure environment variables
 
@@ -310,7 +346,7 @@ COGNITO_USER_POOL_ID=<your_cognito_user_pool_id>
 Notes:
 
 - `DATABASE_URL` is required by the application settings.
-- `COGNITO_USER_POOL_ID` is required by the token verification module.
+- `COGNITO_USER_POOL_ID` is required for token verification.
 - `AWS_REGION` defaults to `ap-south-1` when omitted.
 - `COGNITO_CLIENT_SECRET` is needed when the Cognito app client is configured with a secret.
 - Keep `.env` out of version control. Never commit real credentials or secrets.
@@ -387,12 +423,29 @@ query {
 }
 ```
 
-For authenticated operations, include the Cognito access token in the Authorization header. Consult the relevant module's mutation, query, and type definitions for the exact operation names and input/output fields.
+For authenticated operations, include the Cognito access token in the Authorization header. Consult the relevant module's mutation, query, schema, and type definitions for the exact operation names and input/output fields.
+
+## Code quality
+
+Ruff is configured in `pyproject.toml` with an 88-character line length and Python 3.13 as the target version.
+
+Run the checks from the repository root:
+
+```bash
+# Check lint rules
+ruff check .
+
+# Check formatting without changing files
+ruff format --check .
+
+# Apply formatting
+ruff format .
+```
 
 ## Configuration
 
 | Variable | Required | Description |
-|---|---:|---|
+|---|---|---|
 | `DATABASE_URL` | Yes | Async SQLAlchemy PostgreSQL connection URL using Psycopg |
 | `AWS_REGION` | No | Cognito region; defaults to `ap-south-1` |
 | `COGNITO_CLIENT_ID` | For token verification | Cognito app-client ID checked against the access token |
@@ -406,9 +459,11 @@ For authenticated operations, include the Cognito access token in the Authorizat
 - The async SQLAlchemy session is provided through the GraphQL context dependency.
 - Task and comment deletion use soft-delete behavior in the service/repository layer.
 - Task restoration is implemented for soft-deleted tasks.
+- Workspace deletion uses soft-delete behavior.
 - Workspace creation provisions the default roles, permission mappings, and creator's OWNER membership.
+- Pydantic payload schemas and service-level permission decorators are being adopted module by module.
 - No Docker Compose configuration, automated test suite, or deployment workflow is present in the current repository tree.
-- The current `requirements.txt` does not include `pydantic-settings`, although `app/core/config.py` imports it. It is installed explicitly in the setup instructions above; consider adding it to the dependency file.
+- The current `requirements.txt` does not include `pydantic-settings`, although `app/core/config.py` imports it. Install it explicitly as shown in the setup instructions.
 
 ## License
 
