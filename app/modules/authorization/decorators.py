@@ -7,6 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.workspaces.models.models import Permission
 from app.modules.workspaces.security.authorization_service import AuthorizationService
+from app.modules.workspaces.security.workspace_access_service import (
+    WorkspaceAccessService,
+)
 
 
 def require_permission(permission: Permission):
@@ -22,7 +25,14 @@ def require_permission(permission: Permission):
             user_id = bound_arguments.arguments["user_id"]
             workspace_id = bound_arguments.arguments["workspace_id"]
 
-            # Delegate permission validation to the existing service
+
+            # Step 1: Verify workspace is active.
+            await WorkspaceAccessService.require_active_workspace(
+                db=db,
+                workspace_id=workspace_id,
+            )
+            
+            # Step 2: Verify user permission.
             await AuthorizationService.require_permission(
                 db=db,
                 user_id=user_id,
@@ -30,7 +40,7 @@ def require_permission(permission: Permission):
                 permission_key=permission.value,
             )
 
-            # Execute the original service method
+            # Step 3: Execute service method.
             return await func(*args, **kwargs)
 
         return wrapper

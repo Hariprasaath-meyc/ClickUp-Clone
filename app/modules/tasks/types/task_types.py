@@ -1,10 +1,13 @@
 from datetime import datetime
 from uuid import UUID
+from dataclasses import dataclass
+from typing import Any
 
 import strawberry
 from strawberry import Maybe
 
 from app.modules.tasks.enums import TaskPriority, TaskStatus
+from app.modules.tasks.enums.task_history_action import TaskHistoryAction
 
 # Task Inputs
 
@@ -114,3 +117,10 @@ class DeleteTaskResult:
 class RestoreTaskInput:
     workspace_id: UUID
     task_id: UUID
+
+@dataclass
+class TaskHistoryContext:
+    task: Any
+    action: TaskHistoryAction
+    changes: dict[str, Any]
+    result: Any = None

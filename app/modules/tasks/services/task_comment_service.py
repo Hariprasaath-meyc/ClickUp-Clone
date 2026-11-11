@@ -4,17 +4,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.authorization.decorators import require_permission
 from app.modules.authorization.permissions import Permission
+from app.modules.tasks.decorators import record_task_history
 from app.modules.tasks.enums import TaskHistoryAction
 from app.modules.tasks.repository import (
     TaskCommentRepository,
     TaskRepository,
 )
-from app.modules.tasks.services.task_history_service import TaskHistoryService
+from app.modules.tasks.types.task_types import TaskHistoryContext
+
 
 
 class TaskCommentService:
     @staticmethod
     @require_permission(Permission.TASKS_READ)
+    @record_task_history
     async def create_comment(
         db: AsyncSession,
         workspace_id: uuid.UUID,
@@ -43,22 +46,19 @@ class TaskCommentService:
             content=content.strip(),
         )
 
-        await TaskHistoryService.record_activity(
-            db=db,
-            workspace_id=workspace_id,
-            task_id=task_id,
-            actor_id=user_id,
+        return TaskHistoryContext(
+            task=task,
             action=TaskHistoryAction.COMMENT_CREATED,
-            changes={
+                changes={
                 "comment_id": str(comment.id),
                 "content": comment.content,
             },
+            result=comment,
         )
-
-        return comment
 
     @staticmethod
     @require_permission(Permission.TASKS_READ)
+    @record_task_history
     async def update_comment(
         db: AsyncSession,
         comment_id: uuid.UUID,
@@ -67,6 +67,16 @@ class TaskCommentService:
         user_id: uuid.UUID,
         content: str,
     ):
+
+     # 1. Retrieve parent task.
+        task = await TaskRepository.get_by_id(
+            db=db,
+            task_id=task_id,
+            workspace_id=workspace_id,
+        )
+
+        if task is None:
+            raise ValueError("Task not found.")
 
         comment = await TaskCommentRepository.get_by_id(
             db=db,
@@ -93,25 +103,23 @@ class TaskCommentService:
             content=new_content,
         )
 
-        await TaskHistoryService.record_activity(
-            db=db,
-            workspace_id=workspace_id,
-            task_id=task_id,
-            actor_id=user_id,
-            action=TaskHistoryAction.COMMENT_UPDATED,
-            changes={
-                "comment_id": str(comment.id),
-                "content": {
-                    "old": old_content,
-                    "new": new_content,
-                },
-            },
-        )
-
-        return comment
+        return TaskHistoryContext(
+                task=task,
+                action=TaskHistoryAction.COMMENT_UPDATED,
+                changes={
+                    "comment_id": str(comment.id),
+                    "content": {
+                        "old": old_content,
+                        "new": new_content,
+                    },
+                } if old_content != new_content else {},
+                result=comment,
+            )
+      
 
     @staticmethod
     @require_permission(Permission.TASKS_READ)
+    @record_task_history
     async def delete_comment(
         db: AsyncSession,
         comment_id: uuid.UUID,
@@ -119,7 +127,16 @@ class TaskCommentService:
         task_id: uuid.UUID,
         user_id: uuid.UUID,
     ):
+         # 1. Retrieve parent task.
+        task = await TaskRepository.get_by_id(
+            db=db,
+            task_id=task_id,
+            workspace_id=workspace_id,
+        )
 
+        if task is None:
+            raise ValueError("Task not found.")
+        
         comment = await TaskCommentRepository.get_by_id(
             db=db,
             comment_id=comment_id,
@@ -138,16 +155,12 @@ class TaskCommentService:
             comment=comment,
         )
 
-        await TaskHistoryService.record_activity(
-            db=db,
-            workspace_id=workspace_id,
-            task_id=task_id,
-            actor_id=user_id,
+        return TaskHistoryContext(
+            task=task,
             action=TaskHistoryAction.COMMENT_DELETED,
             changes={
                 "comment_id": str(comment.id),
                 "content": comment.content,
             },
+            result=True,
         )
-
-        return True

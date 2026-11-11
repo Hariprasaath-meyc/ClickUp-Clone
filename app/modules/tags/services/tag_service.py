@@ -8,14 +8,17 @@ from app.modules.tags.repository import (
     TagRepository,
     TaskTagRepository,
 )
+from app.modules.tasks.decorators import record_task_history
 from app.modules.tasks.enums import TaskHistoryAction
 from app.modules.tasks.repository import TaskRepository
 from app.modules.tasks.services import TaskHistoryService
+from app.modules.tasks.types.task_types import TaskHistoryContext
 
 
 class TagService:
     @staticmethod
     @require_permission(Permission.TASKS_UPDATE)
+    @record_task_history
     async def assign_tags(
         db: AsyncSession,
         workspace_id: uuid.UUID,
@@ -99,14 +102,24 @@ class TagService:
             )
 
         # 5. Return current task tags.
-        return await TaskTagRepository.get_task_tags(
+        task_tags = await TaskTagRepository.get_task_tags(
             db=db,
             workspace_id=workspace_id,
             task_id=task_id,
         )
 
+        return TaskHistoryContext(
+            task=task,
+            action=TaskHistoryAction.TASK_TAG_ADDED,
+            changes={
+                "tag_ids": [str(tag_id) for tag_id in assigned_tag_ids]
+            },
+            result=task_tags,
+        )
+
     @staticmethod
     @require_permission(Permission.TASKS_UPDATE)
+    @record_task_history
     async def remove_tags(
         db: AsyncSession,
         workspace_id: uuid.UUID,
@@ -143,7 +156,12 @@ class TagService:
         removed_tag_ids = [tag_id for tag_id in tag_ids if tag_id in existing_tag_ids]
 
         if not removed_tag_ids:
-            return 0
+            return TaskHistoryContext(
+                task=task,
+                action=TaskHistoryAction.TASK_TAG_REMOVED,
+                changes={},
+                result=0,
+            )
 
         # 4. Remove associations.
         removed_count = 0
@@ -159,18 +177,15 @@ class TagService:
             if removed:
                 removed_count += 1
 
-        # 5. Record audit history.
-        if removed_count:
-            await TaskHistoryService.record_activity(
-                db=db,
-                workspace_id=workspace_id,
-                task_id=task_id,
-                actor_id=user_id,
-                action=TaskHistoryAction.TASK_TAG_REMOVED,
-                changes={"tag_ids": [str(tag_id) for tag_id in removed_tag_ids]},
-            )
-
-        return removed_count
+        # 5. Return audit event.
+        return TaskHistoryContext(
+            task=task,
+            action=TaskHistoryAction.TASK_TAG_REMOVED,
+            changes={
+                "tag_ids": [str(tag_id) for tag_id in removed_tag_ids]
+            } if removed_count else {},
+            result=removed_count,
+        )
 
     @staticmethod
     @require_permission(Permission.TASKS_READ)

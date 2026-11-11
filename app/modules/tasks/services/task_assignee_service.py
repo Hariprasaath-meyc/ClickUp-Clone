@@ -5,18 +5,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.authorization.decorators import require_permission
 from app.modules.authorization.permissions import Permission
+
 from app.modules.tasks.enums import TaskHistoryAction
 from app.modules.tasks.repository import (
     TaskAssigneeRepository,
     TaskRepository,
 )
-from app.modules.tasks.services.task_history_service import TaskHistoryService
+from app.modules.tasks.decorators import record_task_history
+from app.modules.tasks.types.task_types import TaskHistoryContext
 from app.modules.workspaces.models import WorkspaceMember
 
 
 class TaskAssigneeService:
     @staticmethod
     @require_permission(Permission.TASKS_ASSIGN)
+    @record_task_history
     async def assign_users(
         db: AsyncSession,
         workspace_id: uuid.UUID,
@@ -24,8 +27,7 @@ class TaskAssigneeService:
         user_ids: list[uuid.UUID],
         user_id: uuid.UUID,
     ):
-
-        # 1. Validate task existence
+        # 1. Validate task existence.
         task = await TaskRepository.get_by_id(
             db,
             task_id,
@@ -35,14 +37,14 @@ class TaskAssigneeService:
         if task is None:
             raise ValueError("Task not found.")
 
-        # 2. Validate input
+        # 2. Validate input.
         if not user_ids:
             raise ValueError("At least one assignee is required.")
 
-        # Remove duplicate IDs from the request
+        # Remove duplicate IDs from the request.
         user_ids = list(dict.fromkeys(user_ids))
 
-        # 3. Verify that all users are workspace members
+        # 3. Verify that all users are workspace members.
         result = await db.execute(
             select(WorkspaceMember.user_id).where(
                 WorkspaceMember.workspace_id == workspace_id,
@@ -58,45 +60,55 @@ class TaskAssigneeService:
         if invalid_ids:
             raise ValueError("One or more users are not members of this workspace.")
 
-        # 4. Retrieve existing assignments
+        # 4. Retrieve existing assignments.
         existing_assignments = await TaskAssigneeRepository.get_task_assignees(
             db,
             workspace_id,
             task_id,
         )
 
-        existing_user_ids = {assignment.user_id for assignment in existing_assignments}
+        existing_user_ids = {
+            assignment.user_id for assignment in existing_assignments
+        }
 
-        # 5. Assign only users who are not already assigned
+        # 5. Identify users who are not already assigned.
         new_user_ids = [
             assignee_id
             for assignee_id in user_ids
             if assignee_id not in existing_user_ids
         ]
 
+        # 6. Assign new users.
         if new_user_ids:
-            await TaskHistoryService.record_activity(
+            await TaskAssigneeRepository.assign_users(
                 db=db,
                 workspace_id=workspace_id,
                 task_id=task_id,
-                actor_id=user_id,
-                action=TaskHistoryAction.TASK_ASSIGNED,
-                changes={
-                    "assigned_user_ids": [
-                        str(assignee_id) for assignee_id in new_user_ids
-                    ]
-                },
+                user_ids=new_user_ids,
             )
 
-        # 6. Return all current assignments
-        return await TaskAssigneeRepository.get_task_assignees(
+        # 7. Retrieve all current assignments.
+        assignments = await TaskAssigneeRepository.get_task_assignees(
             db,
             workspace_id,
             task_id,
         )
 
+        # 8. Return audit context.
+        return TaskHistoryContext(
+            task=task,
+            action=TaskHistoryAction.TASK_ASSIGNED,
+            changes={
+                "assigned_user_ids": [
+                    str(assignee_id) for assignee_id in new_user_ids
+                ]
+            } if new_user_ids else {},
+            result=assignments,
+        )
+
     @staticmethod
     @require_permission(Permission.TASKS_ASSIGN)
+    @record_task_history
     async def unassign_users(
         db: AsyncSession,
         workspace_id: uuid.UUID,
@@ -135,7 +147,12 @@ class TaskAssigneeService:
         ]
 
         if not removed_user_ids:
-            return 0
+                return TaskHistoryContext(
+                    task=task,
+                    action=TaskHistoryAction.TASK_UNASSIGNED,
+                    changes={},
+                    result=0,
+                )
 
         # 4. Remove assignments
         removed_count = await TaskAssigneeRepository.unassign_users(
@@ -146,20 +163,17 @@ class TaskAssigneeService:
         )
 
         # 5. Record audit history
-        await TaskHistoryService.record_activity(
-            db=db,
-            workspace_id=workspace_id,
-            task_id=task_id,
-            actor_id=user_id,
+        # 5. Return audit context.
+        return TaskHistoryContext(
+            task=task,
             action=TaskHistoryAction.TASK_UNASSIGNED,
             changes={
                 "unassigned_user_ids": [
                     str(assignee_id) for assignee_id in removed_user_ids
                 ]
-            },
+            } if removed_count else {},
+            result=removed_count,
         )
-
-        return removed_count
 
     @staticmethod
     async def get_my_assigned_tasks(

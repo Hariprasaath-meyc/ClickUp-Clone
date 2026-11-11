@@ -5,6 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from strawberry.types import Info
 
 from app.modules.auth.authorization import require_authenticated_user
+from app.modules.auth.schemas.inputs import (
+    ConfirmSignupInput,SignupInput,
+)
+
 from app.modules.auth.service import AuthService
 from app.modules.auth.types import (
     CodeDeliveryDetails,
@@ -18,26 +22,27 @@ from app.modules.users.service import UserService
 
 email_validator = TypeAdapter(EmailStr)
 
-
 @strawberry.type
 class AuthMutation:
-    # Signup Mutation
     @strawberry.mutation
     async def signup(
         self,
-        info: Info,
         email: str,
         password: str,
         display_name: str,
     ) -> SignupResult:
 
         try:
-            validated_email = str(email_validator.validate_python(email))
-
-            result = await AuthService.signup(
-                email=validated_email,
+            payload = SignupInput(
+                email=email,
                 password=password,
                 display_name=display_name,
+            )
+
+            result = await AuthService.signup(
+                email=str(payload.email),
+                password=payload.password,
+                display_name=payload.display_name,
             )
 
             return SignupResult(
@@ -50,7 +55,31 @@ class AuthMutation:
             )
 
         except ValidationError as exc:
-            raise GraphQLError("Invalid email address.") from exc
+            error = exc.errors()[0]
+            field = error["loc"][0]
+            error_type = error["type"]
+
+            messages = {
+                ("email", "value_error"): (
+                    "Please provide a valid email address."
+                ),
+                ("password", "string_too_short"): (
+                    "Password cannot be empty."
+                ),
+                ("display_name", "string_too_short"): (
+                    "Display name cannot be empty."
+                ),
+                ("display_name", "string_too_long"): (
+                    "Display name cannot exceed 100 characters."
+                ),
+            }
+
+            message = messages.get(
+                (field, error_type),
+                "Invalid signup information.",
+            )
+
+            raise GraphQLError(message) from exc
 
         except ValueError as exc:
             raise GraphQLError(str(exc)) from exc
@@ -59,17 +88,19 @@ class AuthMutation:
     @strawberry.mutation
     async def confirm_signup(
         self,
-        info: Info,
         email: str,
         confirmation_code: str,
     ) -> SignupResult:
 
         try:
-            validated_email = str(email_validator.validate_python(email))
+            payload = ConfirmSignupInput(
+                email=email,
+                confirmation_code=confirmation_code,
+            )
 
             result = await AuthService.confirm_signup(
-                email=validated_email,
-                confirmation_code=confirmation_code,
+                email=str(payload.email),
+                confirmation_code=payload.confirmation_code,
             )
 
             return SignupResult(
@@ -78,7 +109,17 @@ class AuthMutation:
             )
 
         except ValidationError as exc:
-            raise GraphQLError("Invalid email address.") from exc
+            error = exc.errors()[0]
+            field = error["loc"][0]
+
+            messages = {
+                "email": "Please provide a valid email address.",
+                "confirmation_code": "Confirmation code cannot be empty.",
+            }
+
+            raise GraphQLError(
+                messages.get(field, "Invalid input provided.")
+            ) from exc
 
         except ValueError as exc:
             raise GraphQLError(str(exc)) from exc

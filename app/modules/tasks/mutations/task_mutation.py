@@ -159,7 +159,8 @@ class TaskMutation:
                 workspace_id=task.workspace_id,
                 task_id=task.id,
             )
-
+            await db.flush()
+            await db.refresh(task)
             await db.commit()
 
             return TaskResult(
@@ -404,6 +405,7 @@ class TaskMutation:
             )
 
             # 5. Commit restoration and history
+            
             await db.commit()
 
             return TaskResult(

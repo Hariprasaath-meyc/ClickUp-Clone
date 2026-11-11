@@ -6,14 +6,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.authorization.decorators import require_permission
 from app.modules.authorization.permissions import Permission
+from app.modules.tasks.decorators import record_task_history
 from app.modules.tasks.enums import TaskHistoryAction, TaskPriority, TaskStatus
 from app.modules.tasks.repository import TaskRepository
 from app.modules.tasks.services.task_history_service import TaskHistoryService
+from app.modules.tasks.types.task_types import TaskHistoryContext
 
 
 class TaskService:
     @staticmethod
     @require_permission(Permission.TASKS_CREATE)
+    @record_task_history
     async def create_task(
         db: AsyncSession,
         workspace_id: uuid.UUID,
@@ -59,28 +62,25 @@ class TaskService:
         )
 
         # 5. Record task creation history.
-        await TaskHistoryService.record_activity(
-            db=db,
-            workspace_id=workspace_id,
-            task_id=task.id,
-            actor_id=user_id,
+        return TaskHistoryContext(
+            task=task,
             action=TaskHistoryAction.TASK_CREATED,
             changes={
                 "title": task.title,
                 "description": task.description,
                 "status": task.status.value,
                 "priority": task.priority.value,
-                "due_date": (task.due_date.isoformat() if task.due_date else None),
+                "due_date": task.due_date.isoformat() if task.due_date else None,
                 "parent_task_id": (
                     str(task.parent_task_id) if task.parent_task_id else None
                 ),
             },
+            result=task,
         )
-
-        return task
 
     @staticmethod
     @require_permission(Permission.TASKS_UPDATE)
+    @record_task_history
     async def update_task(
         db: AsyncSession,
         *,
@@ -155,17 +155,12 @@ class TaskService:
                 }
 
         # 7. Record history only if something actually changed.
-        if changes:
-            await TaskHistoryService.record_activity(
-                db=db,
-                workspace_id=workspace_id,
-                task_id=task_id,
-                actor_id=user_id,
-                action=TaskHistoryAction.TASK_UPDATED,
-                changes=changes,
-            )
-
-        return task
+        return TaskHistoryContext(
+            task=task,
+            action=TaskHistoryAction.TASK_UPDATED,
+            changes=changes,
+            result=task,
+        )
 
     @staticmethod
     @require_permission(Permission.TASKS_READ)
@@ -231,17 +226,13 @@ class TaskService:
             task=task,
         )
 
-        # 4. Record deletion activity.
-        await TaskHistoryService.record_activity(
-            db=db,
-            workspace_id=workspace_id,
-            task_id=task_id,
-            actor_id=user_id,
+       # 4. Return audit context.
+        return TaskHistoryContext(
+            task=task,
             action=TaskHistoryAction.TASK_DELETED,
             changes=changes,
+            result=True,
         )
-
-        return True
 
     @staticmethod
     @require_permission(Permission.TASKS_READ)
@@ -271,6 +262,7 @@ class TaskService:
 
     @staticmethod
     @require_permission(Permission.TASKS_UPDATE)
+    @record_task_history
     async def restore_task(
         db: AsyncSession,
         *,
@@ -297,14 +289,10 @@ class TaskService:
             task=task,
         )
 
-        # 3. Record restoration history.
-        await TaskHistoryService.record_activity(
-            db=db,
-            workspace_id=workspace_id,
-            task_id=task.id,
-            actor_id=user_id,
+       # 3. Return audit context.
+        return TaskHistoryContext(
+            task=task,
             action=TaskHistoryAction.TASK_RESTORED,
             changes={"deleted_at": None},
+            result=task,
         )
-
-        return task

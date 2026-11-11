@@ -3,24 +3,22 @@ import logging
 import strawberry
 from graphql import GraphQLError
 from pydantic import ValidationError
-from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from strawberry.types import Info
 
 from app.modules.auth.authorization import require_authenticated_user
 from app.modules.users.repository import UserRepository
-from app.modules.workspaces.models.models import Workspace
-from app.modules.workspaces.repository import WorkspaceRepository
 from app.modules.workspaces.schemas.workspace import (
     CreateWorkspacePayload,
     DeleteWorkspacePayload,
     UpdateWorkspacePayload,
 )
-from app.modules.workspaces.security.authorization_service import (
-    AuthorizationService,
+from app.modules.workspaces.service import (
+    create_workspace,
+    delete_workspace,
+    update_workspace,
 )
-from app.modules.workspaces.service import create_workspace, delete_workspace
 from app.modules.workspaces.types import (
     CreateWorkspaceInput,
     DeleteWorkspaceInput,
@@ -105,6 +103,7 @@ class WorkspaceMutation:
             raise
 
     # Update workspace
+  
     @strawberry.mutation
     async def update_workspace(
         self,
@@ -112,10 +111,11 @@ class WorkspaceMutation:
         input: UpdateWorkspaceInput,
     ) -> WorkspaceType:
 
+        # 1. Authenticate user
         claims = require_authenticated_user(info)
         db: AsyncSession = info.context["db"]
 
-        # 1. Validate payload
+        # 2. Validate payload
         try:
             payload = UpdateWorkspacePayload(
                 id=str(input.id),
@@ -125,7 +125,7 @@ class WorkspaceMutation:
         except ValidationError as exc:
             raise GraphQLError(str(exc)) from exc
 
-        # 2. Resolve local user
+        # 3. Resolve local user
         user = await UserRepository.get_by_cognito_sub(
             db,
             claims["sub"],
@@ -134,38 +134,21 @@ class WorkspaceMutation:
         if user is None:
             raise GraphQLError("User not found. Please log in again.")
 
-        # 3. Retrieve workspace
-        result = await db.execute(select(Workspace).where(Workspace.id == payload.id))
-        workspace = result.scalar_one_or_none()
-
-        if workspace is None:
-            raise GraphQLError("Workspace not found.")
-
-        # 4. Check authorization
         try:
-            await AuthorizationService.require_permission(
+            # 4. Execute decorated service method
+            workspace = await update_workspace(
                 db=db,
+                workspace_id=payload.id,
                 user_id=user.id,
-                workspace_id=workspace.id,
-                permission_key="workspace.update",
-            )
-        except PermissionError as exc:
-            raise GraphQLError(str(exc)) from exc
-
-        try:
-            # 5. Execute update
-            workspace = await WorkspaceRepository.update(
-                db,
-                workspace,
                 name=payload.name,
                 slug=payload.slug,
             )
 
-            # 6. Commit transaction
+            # 5. Commit transaction
             await db.commit()
             await db.refresh(workspace)
 
-            # 7. Construct GraphQL response
+            # 6. Construct response
             return WorkspaceType(
                 id=strawberry.ID(str(workspace.id)),
                 name=workspace.name,
@@ -175,6 +158,17 @@ class WorkspaceMutation:
                 updated_at=workspace.updated_at,
                 deleted_at=workspace.deleted_at,
             )
+
+        except PermissionError as exc:
+            await db.rollback()
+            raise GraphQLError(
+                str(exc),
+                extensions={"code": "FORBIDDEN"},
+            ) from exc
+
+        except ValueError as exc:
+            await db.rollback()
+            raise GraphQLError(str(exc)) from exc
 
         except IntegrityError as exc:
             await db.rollback()
