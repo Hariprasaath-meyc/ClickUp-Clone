@@ -6,12 +6,34 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
-
-from app.core.config import settings
 from app.db.base import Base
 
+# Import existing model modules
+from app.core.config import settings
+
+
+from app.db.base import Base
+
+# Users
+from app.modules.users import models as user_models
+from app.modules.users import profile_models
+
+# Workspaces
+from app.modules.workspaces.models import models as workspace_models
+from app.modules.workspaces.models import invitation_models
+
+# Tasks
+from app.modules.tasks.models import task_model
+from app.modules.tasks.models import task_assignee_model
+from app.modules.tasks.models import task_comment_model
+from app.modules.tasks.models import task_history_model
+
+# Tags
+from app.modules.tags.models import tag_model
+from app.modules.tags.models import task_tag_model
 # Importing Base registers the User model and its table metadata.
 target_metadata = Base.metadata
+print("Registered tables:", list(Base.metadata.tables.keys()))
 # Alembic configuration
 config = context.config
 

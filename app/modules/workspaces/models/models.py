@@ -10,6 +10,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    CheckConstraint
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -24,6 +25,7 @@ class Workspace(Base):
         UUID(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
+        nullable=True
     )
 
     name: Mapped[str] = mapped_column(
@@ -75,6 +77,14 @@ class Role(Base):
             "role_key",
             name="uq_roles_workspace_role_key",
         ),
+        CheckConstraint(
+        """
+        (is_system_role = TRUE AND workspace_id IS NULL)
+        OR
+        (is_system_role = FALSE AND workspace_id IS NOT NULL)
+        """,
+        name="ck_role_system_workspace",
+    ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
