@@ -6,7 +6,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
-    ForeignKeyConstraint,
+   
     String,
     Uuid,
     func,
@@ -23,13 +23,7 @@ if TYPE_CHECKING:
 class WorkspaceInvitation(Base):
     __tablename__ = "workspace_invitations"
 
-    __table_args__ = (
-        ForeignKeyConstraint(
-            ["workspace_id", "role_id"],
-            ["roles.workspace_id", "roles.id"],
-            name="fk_workspace_invitations_workspace_role",
-        ),
-    )
+    
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
@@ -55,6 +49,7 @@ class WorkspaceInvitation(Base):
 
     role_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
+        ForeignKey("roles.id"),
         nullable=False,
     )
     role: Mapped["Role"] = relationship()

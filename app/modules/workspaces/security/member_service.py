@@ -1,3 +1,4 @@
+
 from uuid import UUID
 
 from sqlalchemy import select
@@ -7,14 +8,12 @@ from app.modules.authorization.decorators import require_permission
 from app.modules.authorization.permissions import Permission
 from app.modules.users.models import User
 from app.modules.users.profile_models import UserProfile
-from app.modules.workspaces.models import (
-    Role,
-    WorkspaceMember,
-)
+from app.modules.workspaces.models import Role, WorkspaceMember
 from app.modules.workspaces.security.role_service import RoleService
 
 
 class MemberService:
+
     @staticmethod
     @require_permission(Permission.MEMBERS_READ)
     async def get_workspace_members(
@@ -35,8 +34,7 @@ class MemberService:
             )
             .join(
                 Role,
-                (Role.id == WorkspaceMember.role_id)
-                & (Role.workspace_id == WorkspaceMember.workspace_id),
+                Role.id == WorkspaceMember.role_id,
             )
             .where(
                 WorkspaceMember.workspace_id == workspace_id,
@@ -102,13 +100,12 @@ class MemberService:
         target_user_id: UUID,
     ) -> WorkspaceMember:
 
-        # Step 1: Retrieve target membership and current role.
+        # 1. Retrieve target membership and current role.
         result = await db.execute(
             select(WorkspaceMember, Role)
             .join(
                 Role,
-                (Role.id == WorkspaceMember.role_id)
-                & (Role.workspace_id == WorkspaceMember.workspace_id),
+                Role.id == WorkspaceMember.role_id,
             )
             .where(
                 WorkspaceMember.workspace_id == workspace_id,
@@ -123,27 +120,30 @@ class MemberService:
 
         membership, current_role = membership_data
 
-        # Step 2: Prevent modification of OWNER.
+        # 2. Prevent modification of OWNER.
         if current_role.role_key == "OWNER":
             raise ValueError("The OWNER role cannot be changed.")
 
-        # Step 3: Retrieve the requested role.
+        # 3. Retrieve the requested global role.
         new_role = await RoleService.get_role_by_key(
             db=db,
-            workspace_id=workspace_id,
             role_key=role_key.strip().upper(),
         )
 
         if new_role is None:
-            raise ValueError("Role not found in this workspace.")
+            raise ValueError("Role not found.")
 
-        # Step 4: Prevent assigning OWNER.
+        # 4. Prevent assigning OWNER.
         if new_role.role_key == "OWNER":
             raise ValueError("The OWNER role cannot be assigned.")
-        # Step 5: Check if the member already has the requested role.
+
+        # 5. Check whether the member already has this role.
         if membership.role_id == new_role.id:
-            raise ValueError(f"Member already has the {new_role.role_key} role.")
-        # Step 6: Update membership.
+            raise ValueError(
+                f"Member already has the {new_role.role_key} role."
+            )
+
+        # 6. Update membership.
         membership.role_id = new_role.id
 
         await db.flush()
@@ -159,17 +159,16 @@ class MemberService:
         target_user_id: UUID,
     ) -> None:
 
-        # Step 1: Retrieve target membership and current role.
+        # 1. Retrieve target membership and current role.
         result = await db.execute(
             select(WorkspaceMember, Role)
             .join(
                 Role,
-                (Role.id == WorkspaceMember.role_id)
-                & (Role.workspace_id == WorkspaceMember.workspace_id),
+                Role.id == WorkspaceMember.role_id,
             )
             .where(
                 WorkspaceMember.workspace_id == workspace_id,
-                WorkspaceMember.user_id == user_id,
+                WorkspaceMember.user_id == target_user_id,
             )
         )
 
@@ -180,11 +179,11 @@ class MemberService:
 
         membership, current_role = membership_data
 
-        # Step 2: Prevent removing the OWNER.
+        # 2. Prevent removing the OWNER.
         if current_role.role_key == "OWNER":
             raise ValueError("The workspace OWNER cannot be removed.")
 
-        # Step 3: Remove workspace membership.
+        # 3. Remove workspace membership.
         await db.delete(membership)
 
         await db.flush()

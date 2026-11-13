@@ -51,7 +51,6 @@ class InvitationQuery:
             for invitation in invitations:
                 role = await RoleService.get_role_by_id(
                     db=db,
-                    workspace_id=parsed_workspace_id,
                     role_id=invitation.role_id,
                 )
 

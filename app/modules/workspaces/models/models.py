@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
-    Boolean,
+
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
@@ -10,7 +10,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
-    CheckConstraint
+  
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -25,7 +25,7 @@ class Workspace(Base):
         UUID(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
-        nullable=True
+        nullable=False
     )
 
     name: Mapped[str] = mapped_column(
@@ -67,24 +67,11 @@ class Role(Base):
     __tablename__ = "roles"
 
     __table_args__ = (
+       
         UniqueConstraint(
-            "workspace_id",
-            "id",
-            name="uq_roles_workspace_id_id",
-        ),
-        UniqueConstraint(
-            "workspace_id",
             "role_key",
-            name="uq_roles_workspace_role_key",
-        ),
-        CheckConstraint(
-        """
-        (is_system_role = TRUE AND workspace_id IS NULL)
-        OR
-        (is_system_role = FALSE AND workspace_id IS NOT NULL)
-        """,
-        name="ck_role_system_workspace",
-    ),
+            name="uq_roles_role_key",
+        ),   
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -93,11 +80,7 @@ class Role(Base):
         default=uuid.uuid4,
     )
 
-    workspace_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("workspaces.id"),
-        nullable=False,
-    )
+    
 
     role_key: Mapped[str] = mapped_column(
         String(50),
@@ -109,12 +92,7 @@ class Role(Base):
         nullable=False,
     )
 
-    is_system_role: Mapped[bool] = mapped_column(
-        Boolean,
-        nullable=False,
-        default=False,
-        server_default="false",
-    )
+    
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -153,33 +131,17 @@ class Permission(Base):
 class RolePermission(Base):
     __tablename__ = "role_permissions"
 
-    __table_args__ = (
-        ForeignKeyConstraint(
-            ["workspace_id", "role_id"],
-            ["roles.workspace_id", "roles.id"],
-            name="fk_role_permissions_workspace_role",
-            ondelete="CASCADE",
-        ),
-        ForeignKeyConstraint(
-            ["permission_id"],
-            ["permissions.id"],
-            name="fk_role_permissions_permission",
-            ondelete="CASCADE",
-        ),
-    )
-
-    workspace_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        primary_key=True,
-    )
+   
 
     role_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
+        ForeignKey("roles.id"),
         primary_key=True,
     )
 
     permission_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
+        ForeignKey("permissions.id",ondelete="CASCADE"),
         primary_key=True,
     )
 
@@ -193,15 +155,7 @@ class RolePermission(Base):
 class WorkspaceMember(Base):
     __tablename__ = "workspace_members"
 
-    __table_args__ = (
-        ForeignKeyConstraint(
-            ["workspace_id", "role_id"],
-            ["roles.workspace_id", "roles.id"],
-            name="fk_workspace_members_workspace_role",
-            ondelete="CASCADE",
-        ),
-    )
-
+    
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("workspaces.id", ondelete="CASCADE"),
@@ -217,6 +171,7 @@ class WorkspaceMember(Base):
 
     role_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
+        ForeignKey("roles.id"),
         nullable=False,
     )
 

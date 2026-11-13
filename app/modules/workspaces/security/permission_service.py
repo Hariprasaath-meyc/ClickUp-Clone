@@ -1,3 +1,4 @@
+
 from uuid import UUID
 
 from sqlalchemy import select
@@ -5,13 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.workspaces.models.models import (
     Permission as PermissionModel,
-)
-from app.modules.workspaces.models.models import (
     RolePermission,
 )
 
 
 class PermissionService:
+
     @staticmethod
     async def get_role_permissions(
         db: AsyncSession,
@@ -26,7 +26,6 @@ class PermissionService:
                 RolePermission.permission_id == PermissionModel.id,
             )
             .where(
-                RolePermission.workspace_id == workspace_id,
                 RolePermission.role_id == role_id,
             )
         )
@@ -48,7 +47,6 @@ class PermissionService:
                 RolePermission.permission_id == PermissionModel.id,
             )
             .where(
-                RolePermission.workspace_id == workspace_id,
                 RolePermission.role_id == role_id,
                 PermissionModel.permission_key == permission_key,
             )

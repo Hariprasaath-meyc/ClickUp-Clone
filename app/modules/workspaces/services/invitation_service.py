@@ -36,7 +36,6 @@ class InvitationService:
         # Step 2: Validate the selected role.
         role = await RoleService.get_role_by_key(
             db=db,
-            workspace_id=workspace_id,
             role_key=role_key.strip().upper(),
         )
 
